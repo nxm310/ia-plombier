@@ -17,6 +17,27 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+export function getApiBaseUrl(): string {
+  if (typeof window === 'undefined') return '';
+  const custom = localStorage.getItem('pme_custom_server_url');
+  if (custom) return custom.trim().replace(/\/+$/, '');
+  return '';
+}
+
+export function getWsBaseUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  const custom = localStorage.getItem('pme_custom_server_url');
+  if (custom) {
+    const clean = custom.trim().replace(/\/+$/, '');
+    return clean.replace(/^http/, 'ws') + '/ws';
+  }
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}/ws`;
+  }
+  return null;
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
@@ -40,15 +61,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   useEffect(() => {
-    // Initial fetch of WhatsApp status
-    fetch('/api/whatsapp/status')
-      .then(res => res.json())
-      .then(data => setWhatsappState(data))
-      .catch(err => console.error('Erreur fetch whatsapp status:', err));
+    const apiBase = getApiBaseUrl();
+    const wsUrl = getWsBaseUrl();
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-    // WebSocket connection
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Sur Vercel / GitHub Pages sans serveur externe configuré
+    if (!isLocal && !apiBase) {
+      setWhatsappState({
+        status: 'disconnected',
+        qrCodeDataUrl: null,
+        phoneNumber: null,
+        lastConnectedAt: null,
+        error: 'server_not_configured'
+      });
+      return;
+    }
+
+    // Initial fetch of WhatsApp status
+    fetch(`${apiBase}/api/whatsapp/status`)
+      .then(res => {
+        if (!res.ok) throw new Error('Not OK');
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) throw new Error('Not JSON');
+        return res.json();
+      })
+      .then(data => {
+        if (data && typeof data.status === 'string') {
+          setWhatsappState(data);
+        }
+      })
+      .catch(err => console.warn('Erreur fetch whatsapp status:', err));
+
+    if (!wsUrl) return;
+
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
 
@@ -94,7 +139,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (ws) ws.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, []);
+  }, [triggerRefresh]);
 
   return (
     <AppContext.Provider

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   QrCode,
   CheckCircle2,
@@ -10,16 +10,30 @@ import {
   Smartphone,
   Copy,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Laptop,
+  Server,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Terminal
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, getApiBaseUrl } from '../context/AppContext';
 
 export const WhatsAppConnect: React.FC = () => {
   const { whatsappState, refreshAll } = useApp();
   const [connectMethod, setConnectMethod] = useState<'qr' | 'code'>('qr');
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [isBackendReachable, setIsBackendReachable] = useState(true);
+  const [isBackendReachable, setIsBackendReachable] = useState<boolean | null>(null);
+
+  // Custom server tunnel state
+  const [customServerUrl, setCustomServerUrl] = useState(() => {
+    return localStorage.getItem('pme_custom_server_url') || '';
+  });
+  const [isTestingServer, setIsTestingServer] = useState(false);
+  const [serverTestFeedback, setServerTestFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showTunnelHelp, setShowTunnelHelp] = useState(false);
 
   // Pairing code state
   const [phoneNumberInput, setPhoneNumberInput] = useState('');
@@ -32,23 +46,89 @@ export const WhatsAppConnect: React.FC = () => {
   const [testText, setTestText] = useState('Bonjour, ceci est un test de connexion WhatsApp !');
   const [testSuccess, setTestSuccess] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    fetch('/api/whatsapp/status')
-      .then(res => {
-        if (!res.ok) throw new Error('Not OK');
-        setIsBackendReachable(true);
-      })
-      .catch(() => {
-        setIsBackendReachable(false);
+  const checkBackendStatus = async (overrideUrl?: string) => {
+    const base = overrideUrl !== undefined ? overrideUrl : getApiBaseUrl();
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (!isLocal && !base) {
+      setIsBackendReachable(false);
+      return false;
+    }
+
+    try {
+      const res = await fetch(`${base}/api/whatsapp/status`, {
+        headers: { 'Accept': 'application/json' }
       });
+      const ct = res.headers.get('content-type') || '';
+      if (!res.ok || !ct.includes('application/json')) {
+        setIsBackendReachable(false);
+        return false;
+      }
+      const data = await res.json();
+      setIsBackendReachable(true);
+      return true;
+    } catch (err) {
+      setIsBackendReachable(false);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    checkBackendStatus();
   }, []);
+
+  const handleSaveCustomServer = async () => {
+    setIsTestingServer(true);
+    setServerTestFeedback(null);
+    const clean = customServerUrl.trim().replace(/\/+$/, '');
+    if (!clean) {
+      localStorage.removeItem('pme_custom_server_url');
+      setCustomServerUrl('');
+      setIsTestingServer(false);
+      await checkBackendStatus('');
+      refreshAll();
+      return;
+    }
+
+    try {
+      const res = await fetch(`${clean}/api/whatsapp/status`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      const ct = res.headers.get('content-type') || '';
+      if (!res.ok || !ct.includes('application/json')) {
+        throw new Error('Le serveur a répondu mais ce n\'est pas l\'API WhatsApp.');
+      }
+      localStorage.setItem('pme_custom_server_url', clean);
+      setIsBackendReachable(true);
+      setServerTestFeedback({ type: 'success', message: 'Connexion réussie au serveur WhatsApp !' });
+      refreshAll();
+    } catch (err: any) {
+      setServerTestFeedback({
+        type: 'error',
+        message: `Impossible de contacter le serveur (${err.message}). Vérifiez l'adresse et que le serveur Node.js est bien en cours d'exécution.`
+      });
+    } finally {
+      setIsTestingServer(false);
+    }
+  };
+
+  const handleResetCustomServer = async () => {
+    localStorage.removeItem('pme_custom_server_url');
+    setCustomServerUrl('');
+    setServerTestFeedback(null);
+    await checkBackendStatus('');
+    refreshAll();
+  };
 
   const handleReconnect = async () => {
     setIsReconnecting(true);
     setPairingCode(null);
     try {
-      await fetch('/api/whatsapp/reset', { method: 'POST' });
-      setIsBackendReachable(true);
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/whatsapp/reset`, { method: 'POST' });
+      if (res.ok) {
+        setIsBackendReachable(true);
+      }
       refreshAll();
     } catch (err) {
       console.error('Erreur reconnect:', err);
@@ -62,7 +142,8 @@ export const WhatsAppConnect: React.FC = () => {
     setIsDisconnecting(true);
     setPairingCode(null);
     try {
-      await fetch('/api/whatsapp/disconnect', { method: 'POST' });
+      const base = getApiBaseUrl();
+      await fetch(`${base}/api/whatsapp/disconnect`, { method: 'POST' });
       refreshAll();
     } catch (err) {
       console.error('Erreur disconnect:', err);
@@ -78,11 +159,16 @@ export const WhatsAppConnect: React.FC = () => {
     setIsRequestingCode(true);
     setPairingCode(null);
     try {
-      const res = await fetch('/api/whatsapp/pairing-code', {
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/whatsapp/pairing-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: phoneNumberInput.trim() })
       });
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        throw new Error('Réponse invalide du serveur (non-JSON).');
+      }
       const data = await res.json();
       if (data.pairingCode) {
         setPairingCode(data.pairingCode);
@@ -109,7 +195,8 @@ export const WhatsAppConnect: React.FC = () => {
 
     setTestSuccess(null);
     try {
-      const res = await fetch('/api/messages/send', {
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/messages/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -117,6 +204,10 @@ export const WhatsAppConnect: React.FC = () => {
           content: testText
         })
       });
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        throw new Error('Réponse invalide du serveur');
+      }
       const data = await res.json();
       if (data.success) {
         setTestSuccess(`Message envoyé avec succès (${data.via}) !`);
@@ -129,7 +220,7 @@ export const WhatsAppConnect: React.FC = () => {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8 overflow-y-auto h-full">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6 overflow-y-auto h-full">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Connexion WhatsApp</h2>
@@ -138,24 +229,36 @@ export const WhatsAppConnect: React.FC = () => {
         </p>
       </div>
 
-      {!isBackendReachable && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 space-y-2 animate-in fade-in">
-          <div className="flex items-center gap-2 font-bold text-sm">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <span>Serveur Local WhatsApp Non Détecté</span>
+      {/* Alerte explicative si backend inaccessible (ex: sur Vercel / GitHub Pages sans tunnel) */}
+      {isBackendReachable === false && (
+        <div className="p-5 bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-300/80 rounded-2xl text-amber-950 space-y-3 shadow-xs animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-200/80 rounded-xl text-amber-900 shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-sm text-amber-950">
+                Pourquoi le QR Code ne s'affiche pas sur Vercel ?
+              </h3>
+              <p className="text-xs text-amber-900/90 leading-relaxed">
+                Vercel héberge les pages web (statique / serverless). WhatsApp nécessite un <strong>serveur Node.js actif en permanence</strong> pour maintenir la session chiffrée de bout en bout et écouter les messages 24h/24.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-amber-800 leading-relaxed">
-            Pour générer le QR Code et chiffrer la liaison WhatsApp de bout en bout, le serveur Node.js doit être actif sur votre machine. Si vous consultez cette page depuis GitHub Pages ou un autre appareil, ouvrez l'application locale sur votre ordinateur :
-          </p>
-          <div className="pt-1 flex flex-wrap items-center gap-2">
+
+          <div className="pt-2 border-t border-amber-200/80 flex flex-wrap items-center gap-3">
             <a
               href="http://localhost:5173"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center gap-1"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
             >
-              Ouvrir l'application sur ce PC (http://localhost:5173) ↗
+              <Laptop className="w-4 h-4" />
+              Ouvrir sur votre ordinateur (http://localhost:5173) ↗
             </a>
+            <span className="text-xs text-amber-900 font-medium">
+              👉 Votre WhatsApp est déjà connecté et opérationnel sur ce PC !
+            </span>
           </div>
         </div>
       )}
@@ -205,7 +308,7 @@ export const WhatsAppConnect: React.FC = () => {
                 }`}
               >
                 <QrCode className="w-4 h-4" />
-                Méthode 1 : Scanner le QR Code (Corrigé anti-crash)
+                Méthode 1 : Scanner le QR Code
               </button>
 
               <button
@@ -217,7 +320,7 @@ export const WhatsAppConnect: React.FC = () => {
                 }`}
               >
                 <KeyRound className="w-4 h-4" />
-                Méthode 2 : Code à 8 chiffres (Sans caméra - 100% garanti)
+                Méthode 2 : Code à 8 chiffres (Sans caméra)
               </button>
             </div>
 
@@ -225,7 +328,33 @@ export const WhatsAppConnect: React.FC = () => {
             {connectMethod === 'qr' && (
               <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-slate-100 p-6">
                 <div className="md:col-span-6 p-4 flex flex-col items-center justify-center text-center space-y-4">
-                  {whatsappState.qrCodeDataUrl ? (
+                  {isBackendReachable === false ? (
+                    <div className="w-full max-w-sm p-6 rounded-2xl bg-amber-50/80 border-2 border-dashed border-amber-300 text-center flex flex-col items-center justify-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shadow-xs">
+                        <AlertTriangle className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-amber-950 text-sm">Génération sur Vercel impossible</h4>
+                        <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                          Vercel est en mode statique sans serveur Node.js WhatsApp relié.
+                        </p>
+                      </div>
+                      <div className="w-full space-y-2 pt-1">
+                        <a
+                          href="http://localhost:5173"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-2"
+                        >
+                          <Laptop className="w-4 h-4" />
+                          Ouvrir en local (localhost:5173) ↗
+                        </a>
+                        <p className="text-[11px] text-slate-500">
+                          Ou configurez un tunnel HTTPS ci-dessous pour utiliser Vercel.
+                        </p>
+                      </div>
+                    </div>
+                  ) : whatsappState.qrCodeDataUrl ? (
                     <div className="p-4 bg-white border-2 border-emerald-500/20 rounded-2xl shadow-lg relative">
                       <img
                         src={whatsappState.qrCodeDataUrl}
@@ -245,21 +374,23 @@ export const WhatsAppConnect: React.FC = () => {
                     </div>
                   )}
 
-                  <button
-                    onClick={handleReconnect}
-                    disabled={isReconnecting}
-                    className="mt-4 flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isReconnecting ? 'animate-spin' : ''}`} />
-                    Régénérer le QR Code
-                  </button>
+                  {isBackendReachable !== false && (
+                    <button
+                      onClick={handleReconnect}
+                      disabled={isReconnecting}
+                      className="mt-4 flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isReconnecting ? 'animate-spin' : ''}`} />
+                      Régénérer le QR Code
+                    </button>
+                  )}
                 </div>
 
                 <div className="md:col-span-6 p-6 space-y-4 flex flex-col justify-center text-xs">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">Connexion par QR Code</h3>
                     <p className="text-slate-500 mt-1">
-                      Le bug qui faisait planter l'application mobile a été corrigé (désactivation de l'export d'historique lourd et gestion du code de redémarrage).
+                      Scannez ce QR Code avec votre application WhatsApp mobile pour lier votre compte en 10 secondes.
                     </p>
                   </div>
 
@@ -279,7 +410,7 @@ export const WhatsAppConnect: React.FC = () => {
                   </ol>
 
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px]">
-                    💡 <em>Si le scan de votre caméra pose problème sur votre modèle de smartphone, utilisez l'onglet ci-dessus <strong>"Méthode 2 : Code à 8 chiffres"</strong>.</em>
+                    💡 <em>Si vous n'avez pas de caméra disponible, utilisez l'onglet ci-dessus <strong>"Méthode 2 : Code à 8 chiffres"</strong>.</em>
                   </div>
                 </div>
               </div>
@@ -295,33 +426,48 @@ export const WhatsAppConnect: React.FC = () => {
                   </p>
                 </div>
 
-                <form onSubmit={handleRequestPairingCode} className="space-y-3">
-                  <label className="block text-xs font-semibold text-slate-700">Votre numéro WhatsApp (avec indicatif pays) :</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: 33612345678 ou +33 6 12 34 56 78"
-                      value={phoneNumberInput}
-                      onChange={e => setPhoneNumberInput(e.target.value)}
-                      className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isRequestingCode || !phoneNumberInput.trim()}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 disabled:opacity-50"
+                {isBackendReachable === false ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 space-y-2 text-xs">
+                    <p className="font-semibold">Le serveur WhatsApp n'est pas joignable depuis cette URL Vercel.</p>
+                    <p>Pour demander un code de jumelage, ouvrez l'application en local :</p>
+                    <a
+                      href="http://localhost:5173"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-emerald-700 font-bold underline"
                     >
-                      {isRequestingCode ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <KeyRound className="w-4 h-4" />
-                          Obtenir le code
-                        </>
-                      )}
-                    </button>
+                      Ouvrir http://localhost:5173 ↗
+                    </a>
                   </div>
-                </form>
+                ) : (
+                  <form onSubmit={handleRequestPairingCode} className="space-y-3">
+                    <label className="block text-xs font-semibold text-slate-700">Votre numéro WhatsApp (avec indicatif pays) :</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ex: 33612345678 ou +33 6 12 34 56 78"
+                        value={phoneNumberInput}
+                        onChange={e => setPhoneNumberInput(e.target.value)}
+                        className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isRequestingCode || !phoneNumberInput.trim()}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {isRequestingCode ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <KeyRound className="w-4 h-4" />
+                            Obtenir le code
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                )}
 
                 {/* Code de jumelage affiché */}
                 {pairingCode && (
@@ -357,6 +503,94 @@ export const WhatsAppConnect: React.FC = () => {
             )}
           </div>
         )}
+      </div>
+
+      {/* Configuration du serveur distant / Tunnel (pour Vercel ou smartphone nomade) */}
+      <div className="bg-white border border-slate-200/80 shadow-sm rounded-2xl p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Server className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-sm font-bold text-slate-900">Liaison Vercel / PWA vers Serveur WhatsApp</h3>
+          </div>
+          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${
+            isBackendReachable
+              ? 'bg-emerald-100 text-emerald-800'
+              : 'bg-slate-100 text-slate-600'
+          }`}>
+            {isBackendReachable ? '● Serveur WhatsApp relié' : '○ Aucun serveur distant relié (Mode local seul)'}
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Sur votre ordinateur local, l'application se connecte directement à <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-[11px]">http://localhost:3001</code>.
+          Si vous utilisez cette version en ligne (Vercel ou PWA sur mobile) et souhaitez communiquer avec votre serveur WhatsApp, entrez son adresse publique HTTPS (tunnel ou hébergeur Node.js) :
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="url"
+            placeholder="Ex: https://mon-tunnel.loca.lt ou https://mon-serveur.railway.app"
+            value={customServerUrl}
+            onChange={e => setCustomServerUrl(e.target.value)}
+            className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          <button
+            onClick={handleSaveCustomServer}
+            disabled={isTestingServer}
+            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition shrink-0 flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {isTestingServer && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+            Enregistrer & Tester
+          </button>
+          {customServerUrl && (
+            <button
+              onClick={handleResetCustomServer}
+              className="px-3 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold transition shrink-0"
+            >
+              Effacer
+            </button>
+          )}
+        </div>
+
+        {serverTestFeedback && (
+          <div className={`text-xs p-3 rounded-xl flex items-center gap-2 ${
+            serverTestFeedback.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              : 'bg-rose-50 text-rose-800 border border-rose-200'
+          }`}>
+            {serverTestFeedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+            )}
+            <span>{serverTestFeedback.message}</span>
+          </div>
+        )}
+
+        {/* Aide pour créer un tunnel en 10 secondes */}
+        <div className="pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => setShowTunnelHelp(!showTunnelHelp)}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition"
+          >
+            <Terminal className="w-3.5 h-3.5 text-slate-400" />
+            <span>Comment exposer mon serveur local avec Localtunnel (gratuit en 10 secondes) ?</span>
+            {showTunnelHelp ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
+          </button>
+
+          {showTunnelHelp && (
+            <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2 text-slate-700 animate-in fade-in">
+              <p>Ouvrez votre terminal et tapez simplement :</p>
+              <pre className="p-2.5 bg-slate-900 text-emerald-400 rounded-lg font-mono text-[11px] overflow-x-auto select-all">
+                npx localtunnel --port 3001
+              </pre>
+              <p className="text-slate-500">
+                Copiez l'adresse HTTPS affichée (ex: <code>https://fluffy-frog-3001.loca.lt</code>) et collez-la dans le champ ci-dessus. Vercel sera immédiatement relié à votre WhatsApp !
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Test Message Form */}
@@ -401,7 +635,8 @@ export const WhatsAppConnect: React.FC = () => {
             )}
             <button
               type="submit"
-              className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition"
+              disabled={isBackendReachable === false}
+              className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
               Envoyer le test
