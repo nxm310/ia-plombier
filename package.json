@@ -8,7 +8,7 @@
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
-    "build:client": "vite build",
+    "build:client": "vite build && cp -r dist/client/* dist/ 2>/dev/null || true",
     "build:server": "tsc -p tsconfig.server.json",
     "build": "npm run build:client && npm run build:server",
     "test": "tsx tests/test-suite.ts",
