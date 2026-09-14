@@ -229,36 +229,38 @@ export const WhatsAppConnect: React.FC = () => {
         </p>
       </div>
 
-      {/* Alerte explicative si backend inaccessible (ex: sur Vercel / GitHub Pages sans tunnel) */}
+      {/* Alerte explicative si backend cloud non relié */}
       {isBackendReachable === false && (
-        <div className="p-5 bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-300/80 rounded-2xl text-amber-950 space-y-3 shadow-xs animate-in fade-in">
+        <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl text-slate-800 space-y-3 shadow-xs animate-in fade-in">
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-amber-200/80 rounded-xl text-amber-900 shrink-0 mt-0.5">
-              <AlertTriangle className="w-5 h-5" />
+            <div className="p-2 bg-blue-100 rounded-xl text-blue-700 shrink-0 mt-0.5">
+              <Server className="w-5 h-5" />
             </div>
             <div className="space-y-1">
-              <h3 className="font-bold text-sm text-amber-950">
-                Pourquoi le QR Code ne s'affiche pas sur Vercel ?
+              <h3 className="font-bold text-sm text-slate-900">
+                Mode 100% Cloud : Backend Render ou Railway requis
               </h3>
-              <p className="text-xs text-amber-900/90 leading-relaxed">
-                Vercel héberge les pages web (statique / serverless). WhatsApp nécessite un <strong>serveur Node.js actif en permanence</strong> pour maintenir la session chiffrée de bout en bout et écouter les messages 24h/24.
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Vercel héberge l'interface web (PWA). Pour que WhatsApp fonctionne <strong>24h/24 en toute autonomie sans ordinateur allumé</strong>, le backend Node.js doit être déployé sur un hébergeur cloud persistant comme <strong>Render</strong> ou <strong>Railway</strong>.
               </p>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-amber-200/80 flex flex-wrap items-center gap-3">
-            <a
-              href="http://localhost:5173"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
-            >
-              <Laptop className="w-4 h-4" />
-              Ouvrir sur votre ordinateur (http://localhost:5173) ↗
-            </a>
-            <span className="text-xs text-amber-900 font-medium">
-              👉 Votre WhatsApp est déjà connecté et opérationnel sur ce PC !
-            </span>
+          <div className="pt-2 border-t border-blue-200/60 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-blue-900 font-medium">
+              <span>👉 Renseignez l'adresse de votre backend Cloud ci-dessous pour activer WhatsApp en 1 clic.</span>
+            </div>
+            {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+              <a
+                href="http://localhost:5173"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs transition"
+              >
+                <Laptop className="w-3.5 h-3.5 text-slate-500" />
+                Accès testeur local (localhost:5173) ↗
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -329,28 +331,19 @@ export const WhatsAppConnect: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-slate-100 p-6">
                 <div className="md:col-span-6 p-4 flex flex-col items-center justify-center text-center space-y-4">
                   {isBackendReachable === false ? (
-                    <div className="w-full max-w-sm p-6 rounded-2xl bg-amber-50/80 border-2 border-dashed border-amber-300 text-center flex flex-col items-center justify-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shadow-xs">
-                        <AlertTriangle className="w-6 h-6" />
+                    <div className="w-full max-w-sm p-6 rounded-2xl bg-blue-50/70 border-2 border-dashed border-blue-200 text-center flex flex-col items-center justify-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold shadow-xs">
+                        <Server className="w-6 h-6" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-amber-950 text-sm">Génération sur Vercel impossible</h4>
-                        <p className="text-xs text-amber-900 mt-1 leading-relaxed">
-                          Vercel est en mode statique sans serveur Node.js WhatsApp relié.
+                        <h4 className="font-bold text-slate-900 text-sm">En attente du Backend Cloud</h4>
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                          Le QR Code s'affichera ici en direct dès que votre backend Render ou Railway sera connecté.
                         </p>
                       </div>
                       <div className="w-full space-y-2 pt-1">
-                        <a
-                          href="http://localhost:5173"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-2"
-                        >
-                          <Laptop className="w-4 h-4" />
-                          Ouvrir en local (localhost:5173) ↗
-                        </a>
-                        <p className="text-[11px] text-slate-500">
-                          Ou configurez un tunnel HTTPS ci-dessous pour utiliser Vercel.
+                        <p className="text-[11px] text-blue-800 font-medium">
+                          👇 Renseignez l'URL de votre backend Render ou Railway dans la section ci-dessous.
                         </p>
                       </div>
                     </div>
@@ -505,31 +498,30 @@ export const WhatsAppConnect: React.FC = () => {
         )}
       </div>
 
-      {/* Configuration du serveur distant / Tunnel (pour Vercel ou smartphone nomade) */}
+      {/* Configuration du Backend Cloud 24/7 (Render / Railway) */}
       <div className="bg-white border border-slate-200/80 shadow-sm rounded-2xl p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Server className="w-4 h-4 text-emerald-600" />
-            <h3 className="text-sm font-bold text-slate-900">Liaison Vercel / PWA vers Serveur WhatsApp</h3>
+            <h3 className="text-sm font-bold text-slate-900">Liaison Vercel ➔ Backend Cloud 24/7 (Render / Railway)</h3>
           </div>
           <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${
             isBackendReachable
               ? 'bg-emerald-100 text-emerald-800'
               : 'bg-slate-100 text-slate-600'
           }`}>
-            {isBackendReachable ? '● Serveur WhatsApp relié' : '○ Aucun serveur distant relié (Mode local seul)'}
+            {isBackendReachable ? '● Backend Cloud connecté 24/7' : '○ Aucun backend cloud relié'}
           </span>
         </div>
 
         <p className="text-xs text-slate-600 leading-relaxed">
-          Sur votre ordinateur local, l'application se connecte directement à <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-[11px]">http://localhost:3001</code>.
-          Si vous utilisez cette version en ligne (Vercel ou PWA sur mobile) et souhaitez communiquer avec votre serveur WhatsApp, entrez son adresse publique HTTPS (tunnel ou hébergeur Node.js) :
+          Pour faire fonctionner WhatsApp sans laisser votre PC allumé, collez ici l'URL HTTPS de votre service hébergé sur <strong>Render</strong> (ex: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-[11px]">https://ia-plombier-backend.onrender.com</code>) ou <strong>Railway</strong>. Le frontend s'y connectera instantanément en API et WebSocket temps réel :
         </p>
 
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="url"
-            placeholder="Ex: https://mon-tunnel.loca.lt ou https://mon-serveur.railway.app"
+            placeholder="Ex: https://ia-plombier-backend.onrender.com"
             value={customServerUrl}
             onChange={e => setCustomServerUrl(e.target.value)}
             className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -567,7 +559,7 @@ export const WhatsAppConnect: React.FC = () => {
           </div>
         )}
 
-        {/* Aide pour créer un tunnel en 10 secondes */}
+        {/* Aide pour déployer en 2 minutes */}
         <div className="pt-2 border-t border-slate-100">
           <button
             type="button"
@@ -575,19 +567,32 @@ export const WhatsAppConnect: React.FC = () => {
             className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition"
           >
             <Terminal className="w-3.5 h-3.5 text-slate-400" />
-            <span>Comment exposer mon serveur local avec Localtunnel (gratuit en 10 secondes) ?</span>
+            <span>Comment déployer ce backend sur Render ou Railway en 2 minutes ?</span>
             {showTunnelHelp ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
           </button>
 
           {showTunnelHelp && (
-            <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2 text-slate-700 animate-in fade-in">
-              <p>Ouvrez votre terminal et tapez simplement :</p>
-              <pre className="p-2.5 bg-slate-900 text-emerald-400 rounded-lg font-mono text-[11px] overflow-x-auto select-all">
-                npx localtunnel --port 3001
-              </pre>
-              <p className="text-slate-500">
-                Copiez l'adresse HTTPS affichée (ex: <code>https://fluffy-frog-3001.loca.lt</code>) et collez-la dans le champ ci-dessus. Vercel sera immédiatement relié à votre WhatsApp !
-              </p>
+            <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-3 text-slate-700 animate-in fade-in">
+              <div>
+                <p className="font-bold text-slate-900">Option 1 : Sur Render (Recommandé avec Disque Persistant) :</p>
+                <ol className="list-decimal pl-5 space-y-1 mt-1 text-slate-600">
+                  <li>Allez sur <strong>render.com</strong> &gt; <em>New +</em> &gt; <em>Web Service</em> &gt; Choisissez votre dépôt <strong>nxm310/ia-plombier</strong>.</li>
+                  <li>Build Command : <code className="bg-slate-200/80 px-1 rounded">npm install && npm run build:server</code></li>
+                  <li>Start Command : <code className="bg-slate-200/80 px-1 rounded">npm run start</code></li>
+                  <li>Dans <em>Advanced</em> &gt; <em>Add Disk</em> : Nommez-le <code className="bg-slate-200/80 px-1 rounded">data</code> avec le chemin de montage <code className="bg-slate-200/80 px-1 rounded">/var/data</code>.</li>
+                  <li>Cliquez sur <strong>Deploy Web Service</strong>. Une fois déployé, copiez l'adresse HTTPS et collez-la ci-dessus !</li>
+                </ol>
+              </div>
+
+              <div>
+                <p className="font-bold text-slate-900">Option 2 : Sur Railway :</p>
+                <ol className="list-decimal pl-5 space-y-1 mt-1 text-slate-600">
+                  <li>Allez sur <strong>railway.app</strong> &gt; <em>New Project</em> &gt; <em>Deploy from GitHub repo</em>.</li>
+                  <li>Sélectionnez <strong>nxm310/ia-plombier</strong>. Le fichier <code className="bg-slate-200/80 px-1 rounded">railway.json</code> et le <code className="bg-slate-200/80 px-1 rounded">Procfile</code> sont détectés automatiquement.</li>
+                  <li>Ajoutez un <strong>Volume</strong> monté sur <code className="bg-slate-200/80 px-1 rounded">/data</code>.</li>
+                  <li>Générez un domaine public (Settings &gt; Generate Domain) et collez l'URL ci-dessus.</li>
+                </ol>
+              </div>
             </div>
           )}
         </div>

@@ -87,7 +87,7 @@ export function getWhatsAppState(): WhatsAppState {
   return { ...state };
 }
 
-const DATA_DIR = process.env.DATA_DIR || './data';
+import { DATA_DIR } from '../config.js';
 const AUTH_DIR = path.join(DATA_DIR, 'whatsapp_session');
 
 function cleanAuthDir() {
@@ -102,7 +102,11 @@ function cleanAuthDir() {
 }
 
 if (!fs.existsSync(AUTH_DIR)) {
-  fs.mkdirSync(AUTH_DIR, { recursive: true });
+  try {
+    fs.mkdirSync(AUTH_DIR, { recursive: true });
+  } catch (e) {
+    console.warn('[WhatsApp] Erreur création AUTH_DIR:', e);
+  }
 }
 
 export async function initWhatsAppClient(forceReset: boolean = false) {
@@ -124,14 +128,19 @@ export async function initWhatsAppClient(forceReset: boolean = false) {
 
     const logger = pino({ level: 'silent' });
 
-    // Timeout de détection de session orpheline : si 'connecting' plus de 20s sans QR ni succès,
-    // cela signifie que les clés en cache sont révoquées : on purge pour régénérer un QR tout neuf.
-    let staleCheckTimeout: NodeJS.Timeout | null = setTimeout(async () => {
-      if (state.status === 'connecting' && !state.qrCodeDataUrl) {
-        console.warn('[WhatsApp] Session en cache expirée/bloquée. Purge automatique et nouveau QR...');
-        await resetWhatsAppSession();
-      }
-    }, 20000);
+    // Sécurité Cloud : Si la session est déjà enregistrée (numéro jumelé),
+    // on ne purge JAMAIS les clés au démarrage pour préserver l'autonomie 24/7.
+    let staleCheckTimeout: NodeJS.Timeout | null = null;
+    if (!authState.creds?.registered) {
+      staleCheckTimeout = setTimeout(async () => {
+        if (state.status === 'connecting' && !state.qrCodeDataUrl) {
+          console.warn('[WhatsApp] Clés temporaires sans jumelage expirées. Nouveau QR...');
+          await resetWhatsAppSession();
+        }
+      }, 35000);
+    } else {
+      console.log(`[WhatsApp] 🔐 Session persistante détectée (ID: ${authState.creds.me?.id || 'enregistré'}). Connexion immédiate sans perte de clés...`);
+    }
 
     sock = makeWASocket({
       version,

@@ -19,16 +19,40 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function getApiBaseUrl(): string {
   if (typeof window === 'undefined') return '';
+
+  // 1. Paramètre URL direct ?backend=https://... (ex: lien magique partagé)
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const backendParam = urlParams.get('backend');
+    if (backendParam && backendParam.startsWith('http')) {
+      const clean = backendParam.trim().replace(/\/+$/, '');
+      localStorage.setItem('pme_custom_server_url', clean);
+      urlParams.delete('backend');
+      const newSearch = urlParams.toString();
+      const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+      window.history.replaceState({}, '', newUrl);
+      return clean;
+    }
+  } catch {}
+
+  // 2. Mémorisé en localStorage
   const custom = localStorage.getItem('pme_custom_server_url');
   if (custom) return custom.trim().replace(/\/+$/, '');
+
+  // 3. Variable d'environnement Vite / Vercel
+  const envUrl = (import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+
   return '';
 }
 
 export function getWsBaseUrl(): string | null {
   if (typeof window === 'undefined') return null;
-  const custom = localStorage.getItem('pme_custom_server_url');
-  if (custom) {
-    const clean = custom.trim().replace(/\/+$/, '');
+  const apiBase = getApiBaseUrl();
+  if (apiBase) {
+    const clean = apiBase.replace(/\/+$/, '');
     return clean.replace(/^http/, 'ws') + '/ws';
   }
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {

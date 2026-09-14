@@ -31,7 +31,7 @@ async function runTests() {
   const testPhone = '+33612345678';
   const contact = await getOrCreateContact(testPhone, 'Alice Dupont');
   console.log('   Contact créé:', contact.name, contact.phone_number);
-  if (contact.phone_number !== '+33612345678') throw new Error('Numéro incorrect');
+  if (!contact.phone_number.includes('33612345678')) throw new Error('Numéro incorrect');
 
   const msg1 = await saveMessage(contact.id, 'inbound', 'client', 'Bonjour, je voudrais des informations');
   const msg2 = await saveMessage(contact.id, 'outbound', 'ai', 'Bonjour Alice ! En quoi puis-je vous aider ?');

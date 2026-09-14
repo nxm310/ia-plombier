@@ -34,16 +34,14 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
+import { DATA_DIR, UPLOADS_DIR } from './config.js';
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Servir les pièces jointes / fichiers uploadés (devis, factures, images)
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Gestion des clients WebSocket
 const connectedSockets = new Set<WebSocket>();
@@ -77,6 +75,25 @@ setWhatsAppBroadcast((event: string, data: any) => {
   }
 });
 
+// Endpoint de santé pour sondes Cloud (Render / Railway / Docker healthchecks)
+app.get('/api/health', (_req, res) => {
+  const wa = getWhatsAppState();
+  res.json({
+    status: 'ok',
+    uptime: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
+    whatsapp: {
+      status: wa.status,
+      phoneNumber: wa.phoneNumber,
+      lastConnectedAt: wa.lastConnectedAt
+    },
+    storage: {
+      dataDir: DATA_DIR,
+      uploadsDir: UPLOADS_DIR
+    }
+  });
+});
+
 // Montage des routes API
 app.use('/api', apiRouter);
 
@@ -90,18 +107,20 @@ if (fs.existsSync(clientDistPath)) {
 }
 
 const PORT = Number(process.env.PORT) || 3001;
+const HOST = '0.0.0.0';
 
 async function start() {
   try {
-    console.log('[Serveur] Initialisation de la base de données SQLite...');
+    console.log(`[Serveur] Initialisation de la base SQLite dans: ${DATA_DIR}...`);
     await initDatabase();
     console.log('[Serveur] Base de données SQLite prête.');
 
-    // Démarrage du serveur HTTP & WebSocket
-    server.listen(PORT, () => {
+    // Démarrage du serveur HTTP & WebSocket sur 0.0.0.0
+    server.listen(PORT, HOST, () => {
       console.log(`====================================================`);
-      console.log(`🚀 Serveur Backend démarré sur http://localhost:${PORT}`);
-      console.log(`📡 WebSocket disponible sur ws://localhost:${PORT}/ws`);
+      console.log(`🚀 Serveur Backend Cloud actif sur http://${HOST}:${PORT}`);
+      console.log(`📡 WebSocket disponible sur ws://${HOST}:${PORT}/ws`);
+      console.log(`📁 Dossier de données persistant : ${DATA_DIR}`);
       console.log(`====================================================`);
     });
 

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ia-plombier-backend
+    env: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm install && npm run build:server
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: PORT
+        value: 10000
