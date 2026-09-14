@@ -105,7 +105,11 @@ if (!fs.existsSync(AUTH_DIR)) {
   fs.mkdirSync(AUTH_DIR, { recursive: true });
 }
 
-export async function initWhatsAppClient() {
+export async function initWhatsAppClient(forceReset: boolean = false) {
+  if (forceReset) {
+    return resetWhatsAppSession();
+  }
+
   if (sock) {
     return;
   }
@@ -119,6 +123,15 @@ export async function initWhatsAppClient() {
     const { version } = await fetchLatestBaileysVersion();
 
     const logger = pino({ level: 'silent' });
+
+    // Timeout de détection de session orpheline : si 'connecting' plus de 20s sans QR ni succès,
+    // cela signifie que les clés en cache sont révoquées : on purge pour régénérer un QR tout neuf.
+    let staleCheckTimeout: NodeJS.Timeout | null = setTimeout(async () => {
+      if (state.status === 'connecting' && !state.qrCodeDataUrl) {
+        console.warn('[WhatsApp] Session en cache expirée/bloquée. Purge automatique et nouveau QR...');
+        await resetWhatsAppSession();
+      }
+    }, 20000);
 
     sock = makeWASocket({
       version,
@@ -163,6 +176,7 @@ export async function initWhatsAppClient() {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
+        if (staleCheckTimeout) clearTimeout(staleCheckTimeout);
         try {
           const qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 7 });
           state.status = 'qr_ready';
@@ -177,6 +191,7 @@ export async function initWhatsAppClient() {
       }
 
       if (connection === 'close') {
+        if (staleCheckTimeout) clearTimeout(staleCheckTimeout);
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
         const isRestartRequired = statusCode === DisconnectReason.restartRequired; // 515
         const isLoggedOut = statusCode === DisconnectReason.loggedOut; // 401
@@ -603,14 +618,20 @@ export async function sendManualWhatsAppFile(
 }
 
 /**
- * Déconnexion propre de la session WhatsApp
+ * Déconnexion propre de la session WhatsApp (avec sécurité anti-blocage)
  */
 export async function disconnectWhatsApp(): Promise<void> {
   if (sock) {
     try {
-      await sock.logout();
+      if (state.status === 'connected') {
+        await Promise.race([
+          sock.logout(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Logout timeout')), 2500))
+        ]).catch(() => {});
+      }
+      sock.end(undefined);
     } catch (e) {
-      console.warn('[WhatsApp] Erreur lors du logout:', e);
+      console.warn('[WhatsApp] Erreur lors du logout/fermeture:', e);
     }
     sock = null;
   }
@@ -619,5 +640,30 @@ export async function disconnectWhatsApp(): Promise<void> {
   state.qrCodeDataUrl = null;
   state.pairingCode = null;
   state.phoneNumber = null;
+  state.error = null;
   broadcast('whatsapp_status', state);
+}
+
+/**
+ * Réinitialise complètement la session WhatsApp et force la génération immédiate d'un nouveau QR Code
+ */
+export async function resetWhatsAppSession(): Promise<void> {
+  console.log('[WhatsApp] Réinitialisation forcée de la session demandée.');
+  if (sock) {
+    try {
+      sock.end(undefined);
+    } catch (e) {}
+    sock = null;
+  }
+  cleanAuthDir();
+  state.status = 'disconnected';
+  state.qrCodeDataUrl = null;
+  state.pairingCode = null;
+  state.phoneNumber = null;
+  state.error = null;
+  broadcast('whatsapp_status', state);
+
+  // Petit délai de sécurité pour que le système de fichiers libère les verrous
+  await new Promise(resolve => setTimeout(resolve, 500));
+  await initWhatsAppClient();
 }

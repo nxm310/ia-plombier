@@ -9,7 +9,8 @@ import {
   KeyRound,
   Smartphone,
   Copy,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -18,6 +19,7 @@ export const WhatsAppConnect: React.FC = () => {
   const [connectMethod, setConnectMethod] = useState<'qr' | 'code'>('qr');
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [isBackendReachable, setIsBackendReachable] = useState(true);
 
   // Pairing code state
   const [phoneNumberInput, setPhoneNumberInput] = useState('');
@@ -30,11 +32,23 @@ export const WhatsAppConnect: React.FC = () => {
   const [testText, setTestText] = useState('Bonjour, ceci est un test de connexion WhatsApp !');
   const [testSuccess, setTestSuccess] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    fetch('/api/whatsapp/status')
+      .then(res => {
+        if (!res.ok) throw new Error('Not OK');
+        setIsBackendReachable(true);
+      })
+      .catch(() => {
+        setIsBackendReachable(false);
+      });
+  }, []);
+
   const handleReconnect = async () => {
     setIsReconnecting(true);
     setPairingCode(null);
     try {
-      await fetch('/api/whatsapp/connect', { method: 'POST' });
+      await fetch('/api/whatsapp/reset', { method: 'POST' });
+      setIsBackendReachable(true);
       refreshAll();
     } catch (err) {
       console.error('Erreur reconnect:', err);
@@ -123,6 +137,28 @@ export const WhatsAppConnect: React.FC = () => {
           Liez votre numéro WhatsApp pour activer l'agent IA 24h/24 et 7j/7 sans compte Meta payant.
         </p>
       </div>
+
+      {!isBackendReachable && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 space-y-2 animate-in fade-in">
+          <div className="flex items-center gap-2 font-bold text-sm">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span>Serveur Local WhatsApp Non Détecté</span>
+          </div>
+          <p className="text-xs text-amber-800 leading-relaxed">
+            Pour générer le QR Code et chiffrer la liaison WhatsApp de bout en bout, le serveur Node.js doit être actif sur votre machine. Si vous consultez cette page depuis GitHub Pages ou un autre appareil, ouvrez l'application locale sur votre ordinateur :
+          </p>
+          <div className="pt-1 flex flex-wrap items-center gap-2">
+            <a
+              href="http://localhost:5173"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center gap-1"
+            >
+              Ouvrir l'application sur ce PC (http://localhost:5173) ↗
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Main Connection Box */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">

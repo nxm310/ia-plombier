@@ -51,6 +51,7 @@ import fs from 'fs';
 import {
   getWhatsAppState,
   initWhatsAppClient,
+  resetWhatsAppSession,
   disconnectWhatsApp,
   sendManualWhatsAppMessage,
   sendManualWhatsAppFile,
@@ -1519,9 +1520,22 @@ apiRouter.get('/whatsapp/status', (_req: Request, res: Response) => {
   res.json(getWhatsAppState());
 });
 
-apiRouter.post('/whatsapp/connect', async (_req: Request, res: Response) => {
+apiRouter.post('/whatsapp/connect', async (req: Request, res: Response) => {
   try {
-    await initWhatsAppClient();
+    if (req.body?.force) {
+      await resetWhatsAppSession();
+    } else {
+      await initWhatsAppClient();
+    }
+    res.json(getWhatsAppState());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post('/whatsapp/reset', async (_req: Request, res: Response) => {
+  try {
+    await resetWhatsAppSession();
     res.json(getWhatsAppState());
   } catch (err: any) {
     res.status(500).json({ error: err.message });
