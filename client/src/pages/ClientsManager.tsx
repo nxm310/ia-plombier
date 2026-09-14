@@ -25,6 +25,7 @@ import { useApp } from '../context/AppContext';
 import { Contact, Memory, Appointment, Message } from '../types';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
 import { subscribeToContacts, saveCloudContact, deleteCloudContact, getTeamId } from '../services/cloudSync';
+import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
 
 export const ClientsManager: React.FC = () => {
   const { openConversation, setSelectedContactId, setActiveTab, triggerRefresh, refreshAll } = useApp();
@@ -92,10 +93,12 @@ export const ClientsManager: React.FC = () => {
       .map(t => t.trim())
       .filter(Boolean);
 
+    const formattedPhone = formatWhatsAppPhone(editFormPhone.trim()) || editingContact.phone_number;
+
     const updated: Contact = {
       ...editingContact,
       name: editFormName.trim() || null,
-      phone_number: editFormPhone.trim() || editingContact.phone_number,
+      phone_number: formattedPhone,
       email: editFormEmail.trim() || null,
       company: editFormCompany.trim() || null,
       status: editFormStatus as any,
@@ -232,10 +235,12 @@ export const ClientsManager: React.FC = () => {
       .map(t => t.trim())
       .filter(Boolean);
 
+    const formattedPhone = formatWhatsAppPhone(formPhone.trim());
+
     const newContact: Contact = {
       id: Date.now(),
       name: formName.trim() || null,
-      phone_number: formPhone.trim(),
+      phone_number: formattedPhone,
       email: formEmail.trim() || null,
       company: formCompany.trim() || null,
       status: formStatus,
@@ -292,10 +297,12 @@ export const ClientsManager: React.FC = () => {
       .map(t => t.trim())
       .filter(Boolean);
 
+    const formattedPhone = formatWhatsAppPhone(editPhone.trim()) || selectedContact.phone_number;
+
     const updated: Contact = {
       ...selectedContact,
       name: editName.trim() || null,
-      phone_number: editPhone.trim() || selectedContact.phone_number,
+      phone_number: formattedPhone,
       email: editEmail.trim() || null,
       company: editCompany.trim() || null,
       status: editStatus as any,
@@ -733,10 +740,11 @@ export const ClientsManager: React.FC = () => {
                           <input
                             type="tel"
                             value={editPhone}
-                            onChange={e => setEditPhone(e.target.value)}
+                            onChange={e => setEditPhone(handlePhoneInputChange(e.target.value))}
+                            onBlur={e => setEditPhone(formatWhatsAppPhone(e.target.value))}
                             required
                             className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono"
-                            placeholder="Ex: 0612345678"
+                            placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
                           />
                         </div>
                       </div>
@@ -1030,14 +1038,17 @@ export const ClientsManager: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Numéro WhatsApp *</label>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Numéro WhatsApp * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
+                  </label>
                   <input
-                    type="text"
+                    type="tel"
                     required
-                    placeholder="+33 6 12 34 56 78"
+                    placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
                     value={formPhone}
-                    onChange={e => setFormPhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    onChange={e => setFormPhone(handlePhoneInputChange(e.target.value))}
+                    onBlur={e => setFormPhone(formatWhatsAppPhone(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono text-xs"
                   />
                 </div>
                 <div>
@@ -1159,14 +1170,17 @@ export const ClientsManager: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Numéro WhatsApp *</label>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Numéro WhatsApp * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
+                  </label>
                   <input
-                    type="text"
+                    type="tel"
                     required
-                    placeholder="+33 6 12 34 56 78"
+                    placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
                     value={editFormPhone}
-                    onChange={e => setEditFormPhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    onChange={e => setEditFormPhone(handlePhoneInputChange(e.target.value))}
+                    onBlur={e => setEditFormPhone(formatWhatsAppPhone(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono text-xs"
                   />
                 </div>
                 <div>

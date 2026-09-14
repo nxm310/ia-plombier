@@ -35,6 +35,7 @@ import {
 } from '../services/cloudSync';
 import { INDUSTRY_PRESETS } from '../data/industryPresets';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
+import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
 
 export const Appointments: React.FC = () => {
   const { triggerRefresh, refreshAll, selectedContactId, setSelectedContactId } = useApp();
@@ -130,7 +131,7 @@ export const Appointments: React.FC = () => {
     const newContact: Contact = {
       id: Date.now(),
       name: quickClientName.trim() || null,
-      phone_number: quickClientPhone.trim(),
+      phone_number: formatWhatsAppPhone(quickClientPhone.trim()),
       email: null,
       company: quickClientCompany.trim() || null,
       status: 'active',
@@ -1488,11 +1489,12 @@ export const Appointments: React.FC = () => {
                         className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
                       />
                       <input
-                        type="text"
+                        type="tel"
                         placeholder="Numéro WhatsApp / Tél *"
                         value={quickClientPhone}
-                        onChange={e => setQuickClientPhone(e.target.value)}
-                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                        onChange={e => setQuickClientPhone(handlePhoneInputChange(e.target.value))}
+                        onBlur={e => setQuickClientPhone(formatWhatsAppPhone(e.target.value))}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono"
                       />
                     </div>
                     <div className="flex items-center justify-between gap-2">

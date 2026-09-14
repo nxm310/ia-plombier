@@ -14,6 +14,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { TeamMember, TeamMemberStatus } from '../types';
 import { INDUSTRY_PRESETS } from '../data/industryPresets';
+import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
 
 export const Team: React.FC = () => {
   const { triggerRefresh, refreshAll } = useApp();
@@ -202,7 +203,7 @@ export const Team: React.FC = () => {
       name,
       role,
       email,
-      phone,
+      phone: formatWhatsAppPhone(phone.trim()),
       color,
       specialties,
       working_hours: workingHours,
@@ -522,13 +523,16 @@ export const Team: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Téléphone</label>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Téléphone <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
+                  </label>
                   <input
-                    type="text"
-                    placeholder="+33 6 12 34 56 78"
+                    type="tel"
+                    placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
                     value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    onChange={e => setPhone(handlePhoneInputChange(e.target.value))}
+                    onBlur={e => setPhone(formatWhatsAppPhone(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono text-xs"
                   />
                 </div>
               </div>

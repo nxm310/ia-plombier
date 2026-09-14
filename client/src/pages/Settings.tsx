@@ -27,6 +27,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { CompanySettings, AiSettings, Service, TeamMember, IndustryPresetSummary } from '../types';
 import { INDUSTRY_PRESETS, IndustryPreset, generateCustomTradeConfig } from '../data/industryPresets';
+import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
 
 const DEFAULT_PRESET_SUMMARIES: IndustryPresetSummary[] = Object.values(INDUSTRY_PRESETS).map(p => ({
   id: p.id,
@@ -235,16 +236,21 @@ export const Settings: React.FC = () => {
   // Enregistrer le profil entreprise
   const handleSaveCompany = async (e: React.FormEvent) => {
     e.preventDefault();
+    const updatedCompany = {
+      ...company,
+      phone: formatWhatsAppPhone(company.phone)
+    };
+    setCompany(updatedCompany);
     try {
       await fetch('/api/settings/company', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(company)
+        body: JSON.stringify(updatedCompany)
       });
     } catch (err) {
       console.log('Enregistrement local');
     }
-    localStorage.setItem('pme_company_settings', JSON.stringify(company));
+    localStorage.setItem('pme_company_settings', JSON.stringify(updatedCompany));
     triggerNotification('Profil entreprise mis à jour');
   };
 
@@ -727,14 +733,17 @@ Ton rôle :
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Téléphone d'accueil / WhatsApp *</label>
+              <label className="block font-bold text-slate-700 mb-1">
+                Téléphone d'accueil / WhatsApp * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
+              </label>
               <input
-                type="text"
+                type="tel"
                 required
                 value={company.phone}
-                onChange={e => setCompany({ ...company, phone: e.target.value })}
-                placeholder="+33 6 07 72 00 18"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                onChange={e => setCompany({ ...company, phone: handlePhoneInputChange(e.target.value) })}
+                onBlur={e => setCompany({ ...company, phone: formatWhatsAppPhone(e.target.value) })}
+                placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono text-xs"
               />
             </div>
 
