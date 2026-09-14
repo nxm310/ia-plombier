@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Contact, Message, Memory, Appointment } from '../types';
+import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
 
 function formatBytes(bytes?: number | null): string {
   if (!bytes || bytes <= 0) return '';
@@ -88,7 +89,7 @@ export const Conversations: React.FC = () => {
     triggerRefresh,
     refreshAll
   } = useApp();
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>(() => getStoredContacts());
   const [messages, setMessages] = useState<Message[]>([]);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -195,14 +196,26 @@ export const Conversations: React.FC = () => {
   // Charger la liste des contacts
   useEffect(() => {
     fetch('/api/contacts')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
       .then(data => {
-        setContacts(data);
-        if (!selectedContactId && data.length > 0) {
-          setSelectedContactId(data[0].id);
+        if (Array.isArray(data) && data.length > 0) {
+          setContacts(data);
+          saveStoredContacts(data);
+          if (!selectedContactId) {
+            setSelectedContactId(data[0].id);
+          }
         }
       })
-      .catch(err => console.error('Erreur contacts:', err));
+      .catch(err => {
+        console.warn('Backend contacts non joignable, utilisation des contacts locaux:', err);
+        const stored = getStoredContacts();
+        if (!selectedContactId && stored.length > 0) {
+          setSelectedContactId(stored[0].id);
+        }
+      });
   }, [triggerRefresh]);
 
   // Charger les détails du contact sélectionné

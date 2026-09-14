@@ -23,11 +23,16 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Contact, Memory, Appointment, Message } from '../types';
+import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
+import { subscribeToContacts, saveCloudContact, deleteCloudContact, getTeamId } from '../services/cloudSync';
 
 export const ClientsManager: React.FC = () => {
   const { openConversation, setSelectedContactId, setActiveTab, triggerRefresh, refreshAll } = useApp();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>(() => getStoredContacts());
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(() => {
+    const list = getStoredContacts();
+    return list.length > 0 ? list[0] : null;
+  });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -87,35 +92,37 @@ export const ClientsManager: React.FC = () => {
       .map(t => t.trim())
       .filter(Boolean);
 
-    try {
-      const res = await fetch(`/api/contacts/${editingContact.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editFormName || null,
-          phone_number: editFormPhone || editingContact.phone_number,
-          email: editFormEmail || null,
-          company: editFormCompany || null,
-          status: editFormStatus as any,
-          tags: tagsArray,
-          notes: editFormNotes || null
-        })
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setContacts(prev => prev.map(c => c.id === updated.id ? updated : c));
-        if (selectedContact?.id === updated.id) {
-          setSelectedContact(updated);
-        }
-        setEditingContact(null);
-        refreshAll();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(`Erreur lors de la mise à jour: ${errData.error || 'Veuillez vérifier les informations.'}`);
-      }
-    } catch (err) {
-      console.error('Erreur update client:', err);
+    const updated: Contact = {
+      ...editingContact,
+      name: editFormName.trim() || null,
+      phone_number: editFormPhone.trim() || editingContact.phone_number,
+      email: editFormEmail.trim() || null,
+      company: editFormCompany.trim() || null,
+      status: editFormStatus as any,
+      tags: tagsArray,
+      notes: editFormNotes.trim() || null,
+      updated_at: new Date().toISOString()
+    };
+
+    setContacts(prev => {
+      const next = prev.map(c => c.id === updated.id ? updated : c);
+      saveStoredContacts(next);
+      return next;
+    });
+
+    if (selectedContact?.id === updated.id) {
+      setSelectedContact(updated);
     }
+    setEditingContact(null);
+    refreshAll();
+
+    // Sync cloud & API
+    saveCloudContact(updated).catch(() => {});
+    fetch(`/api/contacts/${editingContact.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch(err => console.warn('Sauvegarde contact en local (serveur non connecté):', err));
   };
 
   // Add Memory in Drawer
@@ -123,11 +130,64 @@ export const ClientsManager: React.FC = () => {
   const [newMemoryKey, setNewMemoryKey] = useState('');
   const [newMemoryValue, setNewMemoryValue] = useState('');
 
+  // 1. Chargement de l'API locale avec fallback sur le cache local
   useEffect(() => {
     fetch('/api/contacts')
-      .then(res => res.json())
-      .then(data => setContacts(data))
-      .catch(err => console.error('Erreur contacts:', err));
+      .then(res => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setContacts(data);
+          saveStoredContacts(data);
+          if (!selectedContact) {
+            setSelectedContact(data[0]);
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('Backend contacts non connecté, utilisation du cache local:', err);
+      });
+  }, [triggerRefresh]);
+
+  // 2. Écouteur Cloud Firestore en temps réel pour synchroniser les clients entre collaborateurs
+  useEffect(() => {
+    const teamId = getTeamId();
+    if (!teamId) return;
+
+    const unsubscribe = subscribeToContacts(
+      (cloudList) => {
+        if (cloudList && cloudList.length > 0) {
+          setContacts(prev => {
+            const map = new Map<string, Contact>();
+            prev.forEach(c => map.set(c.phone_number, c));
+            cloudList.forEach(c => {
+              map.set(c.phone_number, {
+                id: typeof c.id === 'number' ? c.id : (Number(c.id) || Date.now()),
+                phone_number: c.phone_number,
+                name: c.name || null,
+                email: c.email || null,
+                company: c.company || null,
+                status: (c.status as any) || 'prospect',
+                tags: c.tags || [],
+                notes: c.notes || null,
+                ai_enabled: c.ai_enabled ?? 1,
+                avatar: c.avatar || null,
+                created_at: c.created_at || new Date().toISOString(),
+                updated_at: c.updated_at || new Date().toISOString()
+              });
+            });
+            const merged = Array.from(map.values());
+            saveStoredContacts(merged);
+            return merged;
+          });
+        }
+      },
+      (err) => console.warn('Erreur synchro cloud contacts:', err)
+    );
+
+    return () => unsubscribe();
   }, [triggerRefresh]);
 
   // Load client details when selected
@@ -162,35 +222,64 @@ export const ClientsManager: React.FC = () => {
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formPhone.trim()) return;
+    if (!formPhone.trim()) {
+      alert('Veuillez renseigner un numéro de téléphone.');
+      return;
+    }
 
     const tagsArray = formTags
       .split(',')
       .map(t => t.trim())
       .filter(Boolean);
 
+    const newContact: Contact = {
+      id: Date.now(),
+      name: formName.trim() || null,
+      phone_number: formPhone.trim(),
+      email: formEmail.trim() || null,
+      company: formCompany.trim() || null,
+      status: formStatus,
+      tags: tagsArray,
+      notes: formNotes.trim() || null,
+      ai_enabled: 1,
+      avatar: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // 1. Mise à jour immédiate de l'état local et persistance dans le navigateur
+    setContacts(prev => {
+      const filtered = prev.filter(c => c.phone_number !== newContact.phone_number);
+      const next = [newContact, ...filtered];
+      saveStoredContacts(next);
+      return next;
+    });
+
+    setSelectedContact(newContact);
+    setIsCreateModalOpen(false);
+    resetCreateForm();
+    refreshAll();
+
+    // 2. Synchronisation Cloud multi-appareils pour les collègues
+    saveCloudContact(newContact).catch(() => {});
+
+    // 3. Sauvegarde sur l'API backend si disponible
     try {
-      const res = await fetch('/api/contacts', {
+      await fetch('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formName || null,
-          phone_number: formPhone,
-          email: formEmail || null,
-          company: formCompany || null,
-          status: formStatus,
-          tags: tagsArray,
-          notes: formNotes || null
+          name: newContact.name,
+          phone_number: newContact.phone_number,
+          email: newContact.email,
+          company: newContact.company,
+          status: newContact.status,
+          tags: newContact.tags,
+          notes: newContact.notes
         })
       });
-
-      const newContact = await res.json();
-      setIsCreateModalOpen(false);
-      resetCreateForm();
-      refreshAll();
-      setSelectedContact(newContact);
     } catch (err) {
-      console.error('Erreur create client:', err);
+      console.warn('Backend contacts non connecté, client conservé en local/cloud:', err);
     }
   };
 
@@ -203,62 +292,82 @@ export const ClientsManager: React.FC = () => {
       .map(t => t.trim())
       .filter(Boolean);
 
-    try {
-      const res = await fetch(`/api/contacts/${selectedContact.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editName || null,
-          phone_number: editPhone || selectedContact.phone_number,
-          email: editEmail || null,
-          company: editCompany || null,
-          status: editStatus as any,
-          tags: tagsArray,
-          notes: editNotes || null
-        })
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setSelectedContact(updated);
-        setIsEditing(false);
-        refreshAll();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(`Erreur lors de la mise à jour: ${errData.error || 'Veuillez vérifier les informations.'}`);
-      }
-    } catch (err) {
-      console.error('Erreur update client:', err);
-    }
+    const updated: Contact = {
+      ...selectedContact,
+      name: editName.trim() || null,
+      phone_number: editPhone.trim() || selectedContact.phone_number,
+      email: editEmail.trim() || null,
+      company: editCompany.trim() || null,
+      status: editStatus as any,
+      tags: tagsArray,
+      notes: editNotes.trim() || null,
+      updated_at: new Date().toISOString()
+    };
+
+    setContacts(prev => {
+      const next = prev.map(c => c.id === updated.id ? updated : c);
+      saveStoredContacts(next);
+      return next;
+    });
+
+    setSelectedContact(updated);
+    setIsEditing(false);
+    refreshAll();
+
+    // Sync cloud & API
+    saveCloudContact(updated).catch(() => {});
+    fetch(`/api/contacts/${selectedContact.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    }).catch(err => console.warn('Sauvegarde contact en local (serveur non connecté):', err));
   };
 
   const handleDeleteClient = async (id: number) => {
     const target = contacts.find(c => c.id === id);
     const label = target?.name ? `${target.name} (${target.phone_number})` : (target?.phone_number || 'ce client');
-    if (!confirm(`Voulez-vous vraiment supprimer définitivement ${label} ? Toutes ses conversations et mémoires associées seront supprimées.`)) return;
-    try {
-      await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
-      if (selectedContact?.id === id) {
-        setSelectedContact(null);
-      }
-      refreshAll();
-    } catch (err) {
-      console.error('Erreur delete client:', err);
+    if (!confirm(`Voulez-vous vraiment supprimer définitivement ${label} ?`)) return;
+
+    setContacts(prev => {
+      const next = prev.filter(c => c.id !== id);
+      saveStoredContacts(next);
+      return next;
+    });
+
+    if (selectedContact?.id === id) {
+      setSelectedContact(null);
     }
+    refreshAll();
+
+    // Sync cloud & API
+    deleteCloudContact(id).catch(() => {});
+    fetch(`/api/contacts/${id}`, { method: 'DELETE' }).catch(err =>
+      console.warn('Suppression contact en local (serveur non connecté):', err)
+    );
   };
 
   const toggleAi = async (contact: Contact) => {
     const newStatus = contact.ai_enabled === 1 ? 0 : 1;
-    try {
-      await fetch(`/api/contacts/${contact.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ai_enabled: newStatus })
-      });
-      refreshAll();
-      setSelectedContact(prev => prev ? { ...prev, ai_enabled: newStatus } : null);
-    } catch (err) {
-      console.error('Erreur toggle AI:', err);
+    const updated = { ...contact, ai_enabled: newStatus };
+
+    setContacts(prev => {
+      const next = prev.map(c => c.id === contact.id ? updated : c);
+      saveStoredContacts(next);
+      return next;
+    });
+
+    if (selectedContact?.id === contact.id) {
+      setSelectedContact(updated);
     }
+    refreshAll();
+
+    // Sync cloud & API
+    saveCloudContact(updated).catch(() => {});
+    fetch(`/api/contacts/${contact.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ai_enabled: newStatus })
+    }).catch(err => console.warn('Mise à jour statut IA en local:', err));
   };
 
   const handleAddMemory = async (e: React.FormEvent) => {

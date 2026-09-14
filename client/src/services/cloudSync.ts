@@ -6,6 +6,7 @@ import {
   onSnapshot,
   deleteDoc,
   updateDoc,
+  setDoc,
   runTransaction,
   enableIndexedDbPersistence,
   query,
@@ -358,3 +359,103 @@ export function getCustomFirebaseConfig(): Record<string, string> | null {
   const str = localStorage.getItem('pme_custom_firebase_config');
   return str ? JSON.parse(str) : null;
 }
+
+// ---------------------------------------------------------------------------
+// 6. SYNCHRONISATION MULTI-APPAREILS DES CLIENTS & CRM (< 200 ms)
+// ---------------------------------------------------------------------------
+export interface CloudContact {
+  id: string | number;
+  phone_number: string;
+  name?: string | null;
+  email?: string | null;
+  company?: string | null;
+  status?: string;
+  tags?: string[];
+  notes?: string | null;
+  ai_enabled?: number;
+  avatar?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Écoute en direct les clients de l'équipe (temps réel).
+ */
+export function subscribeToContacts(
+  onUpdate: (contacts: CloudContact[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const teamId = getTeamId();
+  if (!teamId) return () => {};
+
+  const db = getFirestoreInstance();
+  if (!db) return () => {};
+
+  try {
+    const contactsCol = collection(db, 'teams', teamId, 'contacts');
+
+    const unsubscribe = onSnapshot(
+      contactsCol,
+      (snapshot) => {
+        const list: CloudContact[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ id: docSnap.id, ...docSnap.data() } as CloudContact);
+        });
+        onUpdate(list);
+      },
+      (err) => {
+        console.warn('[CloudSync] Contacts snapshot warning:', err.message);
+        if (onError) onError(err);
+      }
+    );
+
+    return unsubscribe;
+  } catch (err: any) {
+    console.warn('[CloudSync] Échec subscription contacts:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Enregistre ou met à jour un contact sur le Cloud Firestore
+ */
+export async function saveCloudContact(contact: Partial<CloudContact> & { phone_number: string }): Promise<boolean> {
+  const teamId = getTeamId();
+  if (!teamId) return false;
+
+  const db = getFirestoreInstance();
+  if (!db) return false;
+
+  try {
+    const docId = String(contact.id || contact.phone_number.replace(/\D/g, ''));
+    const docRef = doc(db, 'teams', teamId, 'contacts', docId);
+    await setDoc(docRef, {
+      ...contact,
+      updated_at: new Date().toISOString()
+    }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('[CloudSync] Erreur sauvegarde contact cloud:', err);
+    return false;
+  }
+}
+
+/**
+ * Supprime un contact sur le Cloud Firestore
+ */
+export async function deleteCloudContact(contactId: string | number): Promise<boolean> {
+  const teamId = getTeamId();
+  if (!teamId) return false;
+
+  const db = getFirestoreInstance();
+  if (!db) return false;
+
+  try {
+    await deleteDoc(doc(db, 'teams', teamId, 'contacts', String(contactId)));
+    return true;
+  } catch (err) {
+    console.warn('[CloudSync] Erreur suppression contact cloud:', err);
+    return false;
+  }
+}
+

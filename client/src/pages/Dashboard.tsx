@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DashboardStats, Appointment, Contact } from '../types';
+import { getStoredContacts } from '../data/defaultContacts';
 
 export const Dashboard: React.FC = () => {
   const {
@@ -25,7 +26,7 @@ export const Dashboard: React.FC = () => {
   } = useApp();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>(() => getStoredContacts().slice(0, 5));
   const [testMessage, setTestMessage] = useState('');
   const [testSender, setTestSender] = useState('Jean Dupont');
   const [testPhone, setTestPhone] = useState('+33 6 12 99 88 77');
@@ -44,9 +45,18 @@ export const Dashboard: React.FC = () => {
       .catch(err => console.error('Erreur appointments:', err));
 
     fetch('/api/contacts')
-      .then(res => res.json())
-      .then(data => setContacts(data.slice(0, 5)))
-      .catch(err => console.error('Erreur contacts:', err));
+      .then(res => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setContacts(data.slice(0, 5));
+        }
+      })
+      .catch(() => {
+        setContacts(getStoredContacts().slice(0, 5));
+      });
   }, [triggerRefresh]);
 
   const handleSimulate = async (e: React.FormEvent) => {

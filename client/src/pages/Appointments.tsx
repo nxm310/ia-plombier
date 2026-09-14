@@ -29,9 +29,12 @@ import {
   deleteCloudAppointment,
   updateCloudAppointmentStatus,
   subscribeToAppointments,
-  CloudAppointment
+  CloudAppointment,
+  saveCloudContact,
+  subscribeToContacts
 } from '../services/cloudSync';
 import { INDUSTRY_PRESETS } from '../data/industryPresets';
+import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
 
 export const Appointments: React.FC = () => {
   const { triggerRefresh, refreshAll, selectedContactId, setSelectedContactId } = useApp();
@@ -57,7 +60,7 @@ export const Appointments: React.FC = () => {
       working_hours: null
     }));
   });
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>(() => getStoredContacts());
   const [services, setServices] = useState<Service[]>(() => {
     const cached = localStorage.getItem('pme_services_catalog');
     if (cached) {
@@ -112,6 +115,57 @@ export const Appointments: React.FC = () => {
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [conflictError, setConflictError] = useState<{ error: string; suggestedSlot?: string } | null>(null);
   const [cloudAppointments, setCloudAppointments] = useState<CloudAppointment[]>([]);
+
+  // Ajout rapide client depuis la modale de prise de rendez-vous
+  const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
+  const [quickClientName, setQuickClientName] = useState('');
+  const [quickClientPhone, setQuickClientPhone] = useState('');
+  const [quickClientCompany, setQuickClientCompany] = useState('');
+
+  const handleQuickCreateClient = () => {
+    if (!quickClientPhone.trim()) {
+      alert('Veuillez renseigner au moins un numéro de téléphone.');
+      return;
+    }
+    const newContact: Contact = {
+      id: Date.now(),
+      name: quickClientName.trim() || null,
+      phone_number: quickClientPhone.trim(),
+      email: null,
+      company: quickClientCompany.trim() || null,
+      status: 'active',
+      tags: ['Ajout Agenda'],
+      notes: null,
+      ai_enabled: 1,
+      avatar: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    setContacts(prev => {
+      const next = [newContact, ...prev.filter(c => c.phone_number !== newContact.phone_number)];
+      saveStoredContacts(next);
+      return next;
+    });
+    setFormContactId(newContact.id);
+    setIsQuickClientOpen(false);
+    setQuickClientName('');
+    setQuickClientPhone('');
+    setQuickClientCompany('');
+    saveCloudContact(newContact).catch(() => {});
+    fetch('/api/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: newContact.name,
+        phone_number: newContact.phone_number,
+        company: newContact.company,
+        status: newContact.status,
+        tags: newContact.tags
+      })
+    }).catch(err => console.warn('Sauvegarde contact local agenda:', err));
+    refreshAll();
+  };
 
   // Calcul dynamique de l'horaire de fin
   const calculatedEndTime = React.useMemo(() => {
@@ -237,9 +291,17 @@ export const Appointments: React.FC = () => {
       .catch(err => console.warn('Erreur team (utilisation fallback):', err));
 
     fetch('/api/contacts')
-      .then(res => res.json())
-      .then(data => setContacts(data))
-      .catch(err => console.error('Erreur contacts:', err));
+      .then(res => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setContacts(data);
+          saveStoredContacts(data);
+        }
+      })
+      .catch(err => console.warn('Contacts backend non joignable, utilisation du cache:', err));
 
     fetch('/api/services')
       .then(res => {
@@ -260,17 +322,46 @@ export const Appointments: React.FC = () => {
     const teamId = getTeamId();
     if (!teamId) return;
 
-    const unsubscribe = subscribeToAppointments(
+    const unsubscribeApts = subscribeToAppointments(
       (list) => {
         setCloudAppointments(list);
       },
       (err) => {
-        console.warn('[Appointments] Synchronisation Firestore:', err.message);
+        console.warn('[Appointments] Synchronisation Firestore RDV:', err.message);
       }
     );
 
+    const unsubscribeContacts = subscribeToContacts((cloudList) => {
+      if (cloudList && cloudList.length > 0) {
+        setContacts(prev => {
+          const map = new Map<string, Contact>();
+          prev.forEach(c => map.set(c.phone_number, c));
+          cloudList.forEach(c => {
+            map.set(c.phone_number, {
+              id: typeof c.id === 'number' ? c.id : (Number(c.id) || Date.now()),
+              phone_number: c.phone_number,
+              name: c.name || null,
+              email: c.email || null,
+              company: c.company || null,
+              status: (c.status as any) || 'prospect',
+              tags: c.tags || [],
+              notes: c.notes || null,
+              ai_enabled: c.ai_enabled ?? 1,
+              avatar: c.avatar || null,
+              created_at: c.created_at || new Date().toISOString(),
+              updated_at: c.updated_at || new Date().toISOString()
+            });
+          });
+          const merged = Array.from(map.values());
+          saveStoredContacts(merged);
+          return merged;
+        });
+      }
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeApts();
+      unsubscribeContacts();
     };
   }, [triggerRefresh]);
 
@@ -1373,7 +1464,56 @@ export const Appointments: React.FC = () => {
               )}
 
               <div>
-                <label className="block font-medium text-slate-700 mb-1">Client *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-medium text-slate-700">Client *</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickClientOpen(!isQuickClientOpen)}
+                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    {isQuickClientOpen ? 'Annuler' : 'Nouveau client'}
+                  </button>
+                </div>
+
+                {isQuickClientOpen && (
+                  <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <p className="text-[11px] font-bold text-slate-800">Ajout rapide de client :</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nom complet (ex: Pierre Martin)"
+                        value={quickClientName}
+                        onChange={e => setQuickClientName(e.target.value)}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Numéro WhatsApp / Tél *"
+                        value={quickClientPhone}
+                        onChange={e => setQuickClientPhone(e.target.value)}
+                        className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <input
+                        type="text"
+                        placeholder="Entreprise ou Résidence (facultatif)"
+                        value={quickClientCompany}
+                        onChange={e => setQuickClientCompany(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleQuickCreateClient}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shrink-0 cursor-pointer"
+                      >
+                        Créer & Sélectionner
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <select
                   value={formContactId}
                   onChange={e => setFormContactId(e.target.value ? Number(e.target.value) : '')}
