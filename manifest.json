@@ -1,0 +1,24 @@
+{
+  "name": "Assistant WhatsApp & Agenda PME",
+  "short_name": "Agenda PME",
+  "description": "Prise de rendez-vous et synchronisation temps réel d'équipe pour PME",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
