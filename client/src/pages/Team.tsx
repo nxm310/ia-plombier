@@ -13,10 +13,34 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TeamMember, TeamMemberStatus } from '../types';
+import { INDUSTRY_PRESETS } from '../data/industryPresets';
 
 export const Team: React.FC = () => {
   const { triggerRefresh, refreshAll } = useApp();
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
+    const cached = localStorage.getItem('pme_team_members');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    const defaultTeam = INDUSTRY_PRESETS.plumber?.teamMembers || [];
+    return defaultTeam.map((m, idx) => ({
+      id: idx + 1,
+      name: m.name,
+      role: m.role,
+      email: m.email,
+      phone: m.phone,
+      color: m.color,
+      is_active: 1,
+      status: 'active' as TeamMemberStatus,
+      specialties: m.specialties,
+      working_hours: null
+    }));
+  });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
 
@@ -46,9 +70,36 @@ export const Team: React.FC = () => {
 
   useEffect(() => {
     fetch('/api/team')
-      .then(res => res.json())
-      .then(data => setTeamMembers(data))
-      .catch(err => console.error('Erreur team:', err));
+      .then(res => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setTeamMembers(data);
+          localStorage.setItem('pme_team_members', JSON.stringify(data));
+        } else {
+          const cached = localStorage.getItem('pme_team_members');
+          if (cached) {
+            try {
+              setTeamMembers(JSON.parse(cached));
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('Backend team non joignable, utilisation du cache local:', err);
+        const cached = localStorage.getItem('pme_team_members');
+        if (cached) {
+          try {
+            setTeamMembers(JSON.parse(cached));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      });
   }, [triggerRefresh]);
 
   const openCreateModal = () => {
@@ -78,11 +129,15 @@ export const Team: React.FC = () => {
   };
 
   const handleStatusChange = async (memberId: number, newStatus: string) => {
-    setTeamMembers(prev => prev.map(m => m.id === memberId ? {
-      ...m,
-      status: newStatus as any,
-      is_active: newStatus === 'active' ? 1 : 0
-    } : m));
+    setTeamMembers(prev => {
+      const next = prev.map(m => m.id === memberId ? {
+        ...m,
+        status: newStatus as any,
+        is_active: newStatus === 'active' ? 1 : 0
+      } : m);
+      localStorage.setItem('pme_team_members', JSON.stringify(next));
+      return next;
+    });
 
     try {
       await fetch(`/api/team/${memberId}`, {
@@ -95,7 +150,7 @@ export const Team: React.FC = () => {
       });
       refreshAll();
     } catch (err) {
-      console.error('Erreur mise à jour statut collaborateur:', err);
+      console.warn('Sauvegarde statut en local effectuée (backend non joignable):', err);
     }
   };
 
@@ -155,6 +210,18 @@ export const Team: React.FC = () => {
       is_active: status === 'active' ? 1 : 0
     };
 
+    setTeamMembers(prev => {
+      let next: TeamMember[];
+      if (editingMember) {
+        next = prev.map(m => m.id === editingMember.id ? { ...m, ...payload } : m);
+      } else {
+        const newId = prev.length > 0 ? Math.max(...prev.map(p => p.id)) + 1 : 1;
+        next = [...prev, { id: newId, ...payload }];
+      }
+      localStorage.setItem('pme_team_members', JSON.stringify(next));
+      return next;
+    });
+
     try {
       if (editingMember) {
         await fetch(`/api/team/${editingMember.id}`, {
@@ -173,17 +240,24 @@ export const Team: React.FC = () => {
       setIsModalOpen(false);
       refreshAll();
     } catch (err) {
-      console.error('Erreur sauvegarde collaborateur:', err);
+      console.warn('Sauvegarde collaborateur en local effectuée (backend non joignable):', err);
+      setIsModalOpen(false);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Confirmez-vous la suppression de ce collaborateur ?')) return;
+    setTeamMembers(prev => {
+      const next = prev.filter(m => m.id !== id);
+      localStorage.setItem('pme_team_members', JSON.stringify(next));
+      return next;
+    });
+
     try {
       await fetch(`/api/team/${id}`, { method: 'DELETE' });
       refreshAll();
     } catch (err) {
-      console.error('Erreur delete member:', err);
+      console.warn('Suppression collaborateur en local effectuée (backend non joignable):', err);
     }
   };
 

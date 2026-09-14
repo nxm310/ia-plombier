@@ -26,6 +26,20 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CompanySettings, AiSettings, Service, TeamMember, IndustryPresetSummary } from '../types';
+import { INDUSTRY_PRESETS, IndustryPreset, generateCustomTradeConfig } from '../data/industryPresets';
+
+const DEFAULT_PRESET_SUMMARIES: IndustryPresetSummary[] = Object.values(INDUSTRY_PRESETS).map(p => ({
+  id: p.id,
+  name: p.name,
+  shortName: p.shortName,
+  sector: p.sector,
+  badgeEmoji: p.badgeEmoji,
+  description: p.description,
+  servicesCount: p.services.length,
+  teamCount: p.teamMembers.length,
+  previewServices: p.services.slice(0, 3).map(s => `${s.name} (${s.duration_minutes} min)`),
+  companyActivity: p.company.activity
+}));
 
 export const Settings: React.FC = () => {
   const { refreshAll } = useApp();
@@ -69,8 +83,8 @@ export const Settings: React.FC = () => {
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Partial<TeamMember> | null>(null);
 
-  // Presets & Multi-industry
-  const [presets, setPresets] = useState<IndustryPresetSummary[]>([]);
+  // Presets & Multi-industry (pré-rempli par défaut pour être 100% disponible hors-ligne et en ligne)
+  const [presets, setPresets] = useState<IndustryPresetSummary[]>(DEFAULT_PRESET_SUMMARIES);
   const [isPresetGalleryOpen, setIsPresetGalleryOpen] = useState(false);
   const [presetSearch, setPresetSearch] = useState('');
   const [presetSectorFilter, setPresetSectorFilter] = useState('all');
@@ -87,36 +101,125 @@ export const Settings: React.FC = () => {
   const [isApplyingPreset, setIsApplyingPreset] = useState(false);
 
   const loadAllData = () => {
+    // 1. Profil Entreprise
     fetch('/api/settings/company')
-      .then(res => res.json())
-      .then(data => {
-        if (data.name) setCompany(data);
+      .then(res => {
+        if (!res.ok) throw new Error('API non dispo');
+        return res.json();
       })
-      .catch(err => console.error('Erreur get company:', err));
+      .then(data => {
+        if (data.name) {
+          setCompany(data);
+          localStorage.setItem('pme_company_settings', JSON.stringify(data));
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem('pme_company_settings');
+        if (saved) {
+          try { setCompany(JSON.parse(saved)); } catch (e) {}
+        }
+      });
 
+    // 2. Configuration IA
     fetch('/api/settings/ai_config')
-      .then(res => res.json())
-      .then(data => {
-        if (data.provider) setAi(data);
+      .then(res => {
+        if (!res.ok) throw new Error('API non dispo');
+        return res.json();
       })
-      .catch(err => console.error('Erreur get ai_config:', err));
+      .then(data => {
+        if (data.provider) {
+          setAi(data);
+          localStorage.setItem('pme_ai_settings', JSON.stringify(data));
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem('pme_ai_settings');
+        if (saved) {
+          try { setAi(JSON.parse(saved)); } catch (e) {}
+        }
+      });
 
+    // 3. Prestations / Services
     fetch('/api/services')
-      .then(res => res.json())
-      .then(data => setServices(data))
-      .catch(err => console.error('Erreur get services:', err));
-
-    fetch('/api/team')
-      .then(res => res.json())
-      .then(data => setTeamMembers(data))
-      .catch(err => console.error('Erreur get team:', err));
-
-    fetch('/api/presets')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setPresets(data);
+      .then(res => {
+        if (!res.ok) throw new Error('API non dispo');
+        return res.json();
       })
-      .catch(err => console.error('Erreur get presets:', err));
+      .then(data => {
+        if (Array.isArray(data)) {
+          setServices(data);
+          localStorage.setItem('pme_services_catalog', JSON.stringify(data));
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem('pme_services_catalog');
+        if (saved) {
+          try { setServices(JSON.parse(saved)); } catch (e) {}
+        } else {
+          // Prestations par défaut issues du catalogue Plomberie
+          const defServices = INDUSTRY_PRESETS.plumber.services.map((s, idx) => ({
+            id: idx + 1,
+            name: s.name,
+            category: s.category,
+            duration_minutes: s.duration_minutes,
+            price: s.price,
+            description: s.description,
+            is_active: 1
+          }));
+          setServices(defServices);
+          localStorage.setItem('pme_services_catalog', JSON.stringify(defServices));
+        }
+      });
+
+    // 4. Équipe / Collaborateurs
+    fetch('/api/team')
+      .then(res => {
+        if (!res.ok) throw new Error('API non dispo');
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setTeamMembers(data);
+          localStorage.setItem('pme_team_members', JSON.stringify(data));
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem('pme_team_members');
+        if (saved) {
+          try { setTeamMembers(JSON.parse(saved)); } catch (e) {}
+        } else {
+          // Équipe par défaut
+          const defTeam = INDUSTRY_PRESETS.plumber.teamMembers.map((m, idx) => ({
+            id: idx + 1,
+            name: m.name,
+            role: m.role,
+            email: m.email,
+            phone: m.phone,
+            color: m.color,
+            avatar: null,
+            specialties: m.specialties,
+            working_hours: {},
+            status: 'active' as const,
+            is_active: 1,
+            created_at: new Date().toISOString()
+          }));
+          setTeamMembers(defTeam);
+          localStorage.setItem('pme_team_members', JSON.stringify(defTeam));
+        }
+      });
+
+    // 5. Catalogue des Modèles d'Entreprise
+    fetch('/api/presets')
+      .then(res => {
+        if (!res.ok) throw new Error('API non dispo');
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) setPresets(data);
+      })
+      .catch(() => {
+        setPresets(DEFAULT_PRESET_SUMMARIES);
+      });
   };
 
   useEffect(() => {
@@ -138,10 +241,11 @@ export const Settings: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(company)
       });
-      triggerNotification('Profil entreprise mis à jour');
     } catch (err) {
-      console.error('Erreur save company:', err);
+      console.log('Enregistrement local');
     }
+    localStorage.setItem('pme_company_settings', JSON.stringify(company));
+    triggerNotification('Profil entreprise mis à jour');
   };
 
   // Enregistrer la configuration IA
@@ -153,34 +257,81 @@ export const Settings: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ai)
       });
-      triggerNotification('Configuration IA mise à jour');
     } catch (err) {
-      console.error('Erreur save ai:', err);
+      console.log('Enregistrement local');
     }
+    localStorage.setItem('pme_ai_settings', JSON.stringify(ai));
+    triggerNotification('Configuration IA mise à jour');
   };
 
-  // Appliquer un modèle sectoriel parmi les 10 disponibles
+  // Appliquer un modèle sectoriel parmi les disponibles
   const handleApplyPreset = async (presetId: string, presetName: string) => {
     if (!confirm(`Voulez-vous activer le modèle "${presetName}" ? Cela mettra à jour le profil de votre entreprise, vos interventions types avec leurs durées, vos postes métiers et le prompt IA.`)) {
       return;
     }
 
     setIsApplyingPreset(true);
+    const targetPreset = INDUSTRY_PRESETS[presetId];
+
+    // 1. Tenter la mise à jour via l'API si le backend local est présent
     try {
-      const res = await fetch(`/api/presets/${presetId}/apply`, {
+      await fetch(`/api/presets/${presetId}/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ replaceServices: true })
       });
-      if (!res.ok) throw new Error('Erreur');
-      loadAllData();
-      setIsPresetGalleryOpen(false);
-      triggerNotification(`✨ Modèle "${presetName}" activé avec succès !`);
     } catch (err) {
-      console.error('Erreur apply preset:', err);
-    } finally {
-      setIsApplyingPreset(false);
+      console.log('Application locale (mode en ligne / PWA)...');
     }
+
+    // 2. Application instantanée dans le state et dans le stockage local
+    if (targetPreset) {
+      // Profil Entreprise
+      setCompany(targetPreset.company);
+      localStorage.setItem('pme_company_settings', JSON.stringify(targetPreset.company));
+
+      // Config IA
+      setAi(prev => {
+        const next = { ...prev, systemPrompt: targetPreset.systemPrompt };
+        localStorage.setItem('pme_ai_settings', JSON.stringify(next));
+        return next;
+      });
+
+      // Prestations
+      const newServices = targetPreset.services.map((s, idx) => ({
+        id: idx + 1,
+        name: s.name,
+        category: s.category,
+        duration_minutes: s.duration_minutes,
+        price: s.price,
+        description: s.description,
+        is_active: 1
+      }));
+      setServices(newServices);
+      localStorage.setItem('pme_services_catalog', JSON.stringify(newServices));
+
+      // Équipe
+      const newTeam = targetPreset.teamMembers.map((m, idx) => ({
+        id: idx + 1,
+        name: m.name,
+        role: m.role,
+        email: m.email,
+        phone: m.phone,
+        color: m.color,
+        avatar: null,
+        specialties: m.specialties,
+        working_hours: {},
+        status: 'active' as const,
+        is_active: 1,
+        created_at: new Date().toISOString()
+      }));
+      setTeamMembers(newTeam);
+      localStorage.setItem('pme_team_members', JSON.stringify(newTeam));
+    }
+
+    setIsApplyingPreset(false);
+    setIsPresetGalleryOpen(false);
+    triggerNotification(`✨ Modèle "${presetName}" activé avec succès !`);
   };
 
   // Générateur intelligent pour métier sur-mesure
@@ -189,8 +340,10 @@ export const Settings: React.FC = () => {
     if (!customTradeName.trim()) return;
 
     setIsGeneratingCustom(true);
+    const customConfig = generateCustomTradeConfig(customTradeName.trim(), customTradeDesc.trim());
+
     try {
-      const res = await fetch('/api/presets/generate-custom', {
+      await fetch('/api/presets/generate-custom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -199,17 +352,52 @@ export const Settings: React.FC = () => {
           applyImmediately: true
         })
       });
-      if (!res.ok) throw new Error('Erreur');
-      loadAllData();
-      setIsCustomGeneratorOpen(false);
-      setCustomTradeName('');
-      setCustomTradeDesc('');
-      triggerNotification(`✨ Métier "${customTradeName}" généré et appliqué avec succès !`);
-    } catch (err) {
-      console.error('Erreur generate custom trade:', err);
-    } finally {
-      setIsGeneratingCustom(false);
-    }
+    } catch (e) {}
+
+    // Application locale instantanée
+    setCompany(customConfig.company);
+    localStorage.setItem('pme_company_settings', JSON.stringify(customConfig.company));
+
+    setAi(prev => {
+      const next = { ...prev, systemPrompt: customConfig.systemPrompt };
+      localStorage.setItem('pme_ai_settings', JSON.stringify(next));
+      return next;
+    });
+
+    const newServices = customConfig.services.map((s, idx) => ({
+      id: idx + 1,
+      name: s.name,
+      category: s.category,
+      duration_minutes: s.duration_minutes,
+      price: s.price,
+      description: s.description,
+      is_active: 1
+    }));
+    setServices(newServices);
+    localStorage.setItem('pme_services_catalog', JSON.stringify(newServices));
+
+    const newTeam = customConfig.teamMembers.map((m, idx) => ({
+      id: idx + 1,
+      name: m.name,
+      role: m.role,
+      email: m.email,
+      phone: m.phone,
+      color: m.color,
+      avatar: null,
+      specialties: m.specialties,
+      working_hours: {},
+      status: 'active' as const,
+      is_active: 1,
+      created_at: new Date().toISOString()
+    }));
+    setTeamMembers(newTeam);
+    localStorage.setItem('pme_team_members', JSON.stringify(newTeam));
+
+    setIsGeneratingCustom(false);
+    setIsCustomGeneratorOpen(false);
+    setCustomTradeName('');
+    setCustomTradeDesc('');
+    triggerNotification(`✨ Métier "${customTradeName}" généré et appliqué avec succès !`);
   };
 
   // Vider tout le catalogue pour repartir de zéro (base vierge)

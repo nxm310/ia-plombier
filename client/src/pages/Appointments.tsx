@@ -31,13 +31,51 @@ import {
   subscribeToAppointments,
   CloudAppointment
 } from '../services/cloudSync';
+import { INDUSTRY_PRESETS } from '../data/industryPresets';
 
 export const Appointments: React.FC = () => {
   const { triggerRefresh, refreshAll, selectedContactId, setSelectedContactId } = useApp();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
+    const cached = localStorage.getItem('pme_team_members');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return (INDUSTRY_PRESETS.plumber?.teamMembers || []).map((m, idx) => ({
+      id: idx + 1,
+      name: m.name,
+      role: m.role,
+      email: m.email,
+      phone: m.phone,
+      color: m.color,
+      is_active: 1,
+      status: 'active' as const,
+      specialties: m.specialties,
+      working_hours: null
+    }));
+  });
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<Service[]>(() => {
+    const cached = localStorage.getItem('pme_services_catalog');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return (INDUSTRY_PRESETS.plumber?.services || []).map((s, idx) => ({
+      id: idx + 1,
+      name: s.name,
+      category: s.category,
+      duration_minutes: s.duration_minutes,
+      price: s.price,
+      description: s.description,
+      is_active: 1
+    }));
+  });
 
   // Navigation Date
   const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -183,14 +221,20 @@ export const Appointments: React.FC = () => {
       .catch(err => console.error('Erreur appointments:', err));
 
     fetch('/api/team')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
       .then(data => {
-        setTeamMembers(data);
-        if (selectedCollaboratorIds.length === 0) {
-          setSelectedCollaboratorIds(data.map((m: TeamMember) => m.id));
+        if (Array.isArray(data) && data.length > 0) {
+          setTeamMembers(data);
+          localStorage.setItem('pme_team_members', JSON.stringify(data));
+          if (selectedCollaboratorIds.length === 0) {
+            setSelectedCollaboratorIds(data.map((m: TeamMember) => m.id));
+          }
         }
       })
-      .catch(err => console.error('Erreur team:', err));
+      .catch(err => console.warn('Erreur team (utilisation fallback):', err));
 
     fetch('/api/contacts')
       .then(res => res.json())
@@ -198,9 +242,17 @@ export const Appointments: React.FC = () => {
       .catch(err => console.error('Erreur contacts:', err));
 
     fetch('/api/services')
-      .then(res => res.json())
-      .then(data => setServices(data))
-      .catch(err => console.error('Erreur services:', err));
+      .then(res => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setServices(data);
+          localStorage.setItem('pme_services_catalog', JSON.stringify(data));
+        }
+      })
+      .catch(err => console.warn('Erreur services (utilisation fallback):', err));
   }, [triggerRefresh]);
 
   // Écouteur Cloud Firestore en temps réel (<200ms) pour la synchronisation multi-appareils
