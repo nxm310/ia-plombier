@@ -18,48 +18,13 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function getApiBaseUrl(): string {
-  if (typeof window === 'undefined') return '';
-
-  // 1. Paramètre URL direct ?backend=https://... (ex: lien magique partagé)
-  try {
-    const urlParams = new URLSearchParams(window.location.search);
-    const backendParam = urlParams.get('backend');
-    if (backendParam && backendParam.startsWith('http')) {
-      const clean = backendParam.trim().replace(/\/+$/, '');
-      localStorage.setItem('pme_custom_server_url', clean);
-      urlParams.delete('backend');
-      const newSearch = urlParams.toString();
-      const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
-      window.history.replaceState({}, '', newUrl);
-      return clean;
-    }
-  } catch {}
-
-  // 2. Mémorisé en localStorage
-  const custom = localStorage.getItem('pme_custom_server_url');
-  if (custom) return custom.trim().replace(/\/+$/, '');
-
-  // 3. Variable d'environnement Vite / Vercel
-  const envUrl = (import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_BASE_URL;
-  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
-    return envUrl.trim().replace(/\/+$/, '');
-  }
-
   return '';
 }
 
 export function getWsBaseUrl(): string | null {
   if (typeof window === 'undefined') return null;
-  const apiBase = getApiBaseUrl();
-  if (apiBase) {
-    const clean = apiBase.replace(/\/+$/, '');
-    return clean.replace(/^http/, 'ws') + '/ws';
-  }
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}/ws`;
-  }
-  return null;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws`;
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -85,28 +50,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   useEffect(() => {
-    const apiBase = getApiBaseUrl();
     const wsUrl = getWsBaseUrl();
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-    // Sur Vercel / GitHub Pages sans serveur externe configuré
-    if (!isLocal && !apiBase) {
-      setWhatsappState({
-        status: 'disconnected',
-        qrCodeDataUrl: null,
-        phoneNumber: null,
-        lastConnectedAt: null,
-        error: 'server_not_configured'
-      });
-      return;
-    }
-
-    // Initial fetch of WhatsApp status
-    fetch(`${apiBase}/api/whatsapp/status`)
+    // Récupération initiale de l'état WhatsApp
+    fetch('/api/whatsapp/status')
       .then(res => {
         if (!res.ok) throw new Error('Not OK');
-        const ct = res.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) throw new Error('Not JSON');
         return res.json();
       })
       .then(data => {

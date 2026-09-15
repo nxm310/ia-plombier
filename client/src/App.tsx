@@ -9,7 +9,6 @@ import { Contacts } from './pages/Contacts';
 import { WhatsAppConnect } from './pages/WhatsAppConnect';
 import { Settings } from './pages/Settings';
 import { Copilot } from './pages/Copilot';
-import { TeamAccessBar } from './components/TeamAccessBar';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 import { PatchNotesModal } from './components/PatchNotesModal';
 import { CURRENT_PATCH_VERSION } from './data/patchNotes';
@@ -95,9 +94,6 @@ export const App: React.FC = () => {
 
       {/* Contenu principal */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Barre d'accès & Partage WhatsApp Équipe Zéro-Configuration */}
-        <TeamAccessBar />
-
         {/* Header Mobile (visible uniquement sur mobile et tablette < md) */}
         <header className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between z-30 shrink-0 shadow-xs">
           <div className="flex items-center gap-2.5">
