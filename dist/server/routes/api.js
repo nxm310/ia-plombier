@@ -1413,27 +1413,6 @@ apiRouter.delete('/appointments/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-// Paramètres
-apiRouter.get('/settings/:key', async (req, res) => {
-    try {
-        const key = req.params.key;
-        const val = await getSetting(key);
-        res.json(val || {});
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-apiRouter.post('/settings/:key', async (req, res) => {
-    try {
-        const key = req.params.key;
-        await setSetting(key, req.body);
-        res.json({ success: true, key });
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 // Test rapide de la clé Google Gemini API
 apiRouter.post('/settings/test-gemini', async (req, res) => {
     try {
@@ -1462,6 +1441,27 @@ apiRouter.post('/settings/test-gemini', async (req, res) => {
             ok: false,
             message: err.message || 'Erreur lors du test de la clé Gemini'
         });
+    }
+});
+// Paramètres
+apiRouter.get('/settings/:key', async (req, res) => {
+    try {
+        const key = req.params.key;
+        const val = await getSetting(key);
+        res.json(val || {});
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+apiRouter.post('/settings/:key', async (req, res) => {
+    try {
+        const key = req.params.key;
+        await setSetting(key, req.body);
+        res.json({ success: true, key });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 // Contrôles WhatsApp
