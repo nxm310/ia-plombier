@@ -1,653 +1,506 @@
 import React, { useState, useEffect } from 'react';
 import {
-  QrCode,
   CheckCircle2,
   RefreshCw,
-  LogOut,
   Send,
-  ShieldCheck,
   KeyRound,
-  Smartphone,
   Copy,
   Check,
   AlertTriangle,
-  Laptop,
   Server,
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  Terminal
+  HelpCircle,
+  Sparkles,
+  ShieldCheck,
+  Zap,
+  PhoneCall
 } from 'lucide-react';
-import { useApp, getApiBaseUrl } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
+import { autoFormatPhone } from '../utils/phone';
+
+interface MetaStatus {
+  status: 'connected' | 'configured' | 'needs_config';
+  provider: string;
+  isOfficialMeta: boolean;
+  isConfigured: boolean;
+  metaVerified: boolean;
+  phoneNumberId: string | null;
+  verifyToken: string;
+  displayNumber: string | null;
+  verifiedName: string | null;
+  qualityRating: string | null;
+  hasGemini: boolean;
+  hasOpenAI: boolean;
+}
 
 export const WhatsAppConnect: React.FC = () => {
-  const { whatsappState, refreshAll } = useApp();
-  const [connectMethod, setConnectMethod] = useState<'qr' | 'code'>('qr');
-  const [isReconnecting, setIsReconnecting] = useState(false);
-  const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [isBackendReachable, setIsBackendReachable] = useState<boolean | null>(null);
+  const { refreshAll } = useApp();
 
-  // Custom server tunnel state
-  const [customServerUrl, setCustomServerUrl] = useState(() => {
-    return localStorage.getItem('pme_custom_server_url') || '';
+  // État de l'API Meta Cloud
+  const [metaStatus, setMetaStatus] = useState<MetaStatus | null>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+
+  // Identifiants configurables localement ou via Vercel
+  const [phoneNumberIdInput, setPhoneNumberIdInput] = useState(() => {
+    return localStorage.getItem('meta_phone_number_id') || '';
   });
-  const [isTestingServer, setIsTestingServer] = useState(false);
-  const [serverTestFeedback, setServerTestFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [showTunnelHelp, setShowTunnelHelp] = useState(false);
+  const [accessTokenInput, setAccessTokenInput] = useState(() => {
+    return localStorage.getItem('meta_access_token') || '';
+  });
+  const [verifyTokenInput, setVerifyTokenInput] = useState(() => {
+    return localStorage.getItem('meta_verify_token') || 'ia_plombier_token_2026';
+  });
 
-  // Pairing code state
-  const [phoneNumberInput, setPhoneNumberInput] = useState('');
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [isRequestingCode, setIsRequestingCode] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Test message state
+  // Copies rapides
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Test d'envoi de message officiel
   const [testNumber, setTestNumber] = useState('');
-  const [testText, setTestText] = useState('Bonjour, ceci est un test de connexion WhatsApp !');
-  const [testSuccess, setTestSuccess] = useState<string | null>(null);
+  const [testText, setTestText] = useState('Bonjour ! Ceci est un message test officiel via WhatsApp Cloud API.');
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; messageId?: string } | null>(null);
 
-  const checkBackendStatus = async (overrideUrl?: string) => {
-    const base = overrideUrl !== undefined ? overrideUrl : getApiBaseUrl();
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  // Accordéon guide Meta
+  const [showMetaGuide, setShowMetaGuide] = useState(true);
 
-    if (!isLocal && !base) {
-      setIsBackendReachable(false);
-      return false;
-    }
+  // Déterminer l'URL du Webhook Vercel actuel
+  const webhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/webhook`
+    : 'https://votre-app.vercel.app/api/webhook';
 
+  const fetchStatus = async () => {
+    setIsLoadingStatus(true);
     try {
-      const res = await fetch(`${base}/api/whatsapp/status`, {
-        headers: { 'Accept': 'application/json' }
-      });
-      const ct = res.headers.get('content-type') || '';
-      if (!res.ok || !ct.includes('application/json')) {
-        setIsBackendReachable(false);
-        return false;
+      const res = await fetch('/api/status');
+      if (res.ok) {
+        const data = await res.json();
+        setMetaStatus(data);
       }
-      const data = await res.json();
-      setIsBackendReachable(true);
-      return true;
-    } catch (err) {
-      setIsBackendReachable(false);
-      return false;
+    } catch (e) {
+      console.warn('Impossible de charger le statut Meta Cloud:', e);
+    } finally {
+      setIsLoadingStatus(false);
     }
   };
 
   useEffect(() => {
-    checkBackendStatus();
+    fetchStatus();
   }, []);
 
-  const handleSaveCustomServer = async () => {
-    setIsTestingServer(true);
-    setServerTestFeedback(null);
-    const clean = customServerUrl.trim().replace(/\/+$/, '');
-    if (!clean) {
-      localStorage.removeItem('pme_custom_server_url');
-      setCustomServerUrl('');
-      setIsTestingServer(false);
-      await checkBackendStatus('');
-      refreshAll();
-      return;
-    }
-
-    try {
-      const res = await fetch(`${clean}/api/whatsapp/status`, {
-        headers: { 'Accept': 'application/json' }
-      });
-      const ct = res.headers.get('content-type') || '';
-      if (!res.ok || !ct.includes('application/json')) {
-        throw new Error('Le serveur a répondu mais ce n\'est pas l\'API WhatsApp.');
-      }
-      localStorage.setItem('pme_custom_server_url', clean);
-      setIsBackendReachable(true);
-      setServerTestFeedback({ type: 'success', message: 'Connexion réussie au serveur WhatsApp !' });
-      refreshAll();
-    } catch (err: any) {
-      setServerTestFeedback({
-        type: 'error',
-        message: `Impossible de contacter le serveur (${err.message}). Vérifiez l'adresse et que le serveur Node.js est bien en cours d'exécution.`
-      });
-    } finally {
-      setIsTestingServer(false);
-    }
+  const copyToClipboard = (text: string, fieldName: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const handleResetCustomServer = async () => {
-    localStorage.removeItem('pme_custom_server_url');
-    setCustomServerUrl('');
-    setServerTestFeedback(null);
-    await checkBackendStatus('');
-    refreshAll();
-  };
-
-  const handleReconnect = async () => {
-    setIsReconnecting(true);
-    setPairingCode(null);
-    try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/api/whatsapp/reset`, { method: 'POST' });
-      if (res.ok) {
-        setIsBackendReachable(true);
-      }
-      refreshAll();
-    } catch (err) {
-      console.error('Erreur reconnect:', err);
-    } finally {
-      setIsReconnecting(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    if (!confirm('Voulez-vous vraiment déconnecter votre session WhatsApp ?')) return;
-    setIsDisconnecting(true);
-    setPairingCode(null);
-    try {
-      const base = getApiBaseUrl();
-      await fetch(`${base}/api/whatsapp/disconnect`, { method: 'POST' });
-      refreshAll();
-    } catch (err) {
-      console.error('Erreur disconnect:', err);
-    } finally {
-      setIsDisconnecting(false);
-    }
-  };
-
-  const handleRequestPairingCode = async (e: React.FormEvent) => {
+  const handleSaveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phoneNumberInput.trim()) return;
+    setIsSaving(true);
+    setSaveSuccess(null);
+    setSaveError(null);
 
-    setIsRequestingCode(true);
-    setPairingCode(null);
+    const cleanPhoneId = phoneNumberIdInput.trim();
+    const cleanToken = accessTokenInput.trim();
+    const cleanVerify = verifyTokenInput.trim() || 'ia_plombier_token_2026';
+
     try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/api/whatsapp/pairing-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: phoneNumberInput.trim() })
-      });
-      const ct = res.headers.get('content-type') || '';
-      if (!ct.includes('application/json')) {
-        throw new Error('Réponse invalide du serveur (non-JSON).');
-      }
-      const data = await res.json();
-      if (data.pairingCode) {
-        setPairingCode(data.pairingCode);
+      localStorage.setItem('meta_phone_number_id', cleanPhoneId);
+      localStorage.setItem('meta_access_token', cleanToken);
+      localStorage.setItem('meta_verify_token', cleanVerify);
+
+      // Tester directement la validité du Token auprès de Meta Graph API
+      if (cleanPhoneId && cleanToken) {
+        const testRes = await fetch(`https://graph.facebook.com/v21.0/${cleanPhoneId}?fields=display_phone_number,verified_name`, {
+          headers: { 'Authorization': `Bearer ${cleanToken}` }
+        });
+        const testData = await testRes.json();
+        if (!testRes.ok) {
+          throw new Error(testData?.error?.message || 'Identifiants Meta invalides');
+        }
+        setSaveSuccess(`Connexion validée ! Numéro WhatsApp : ${testData.display_phone_number || cleanPhoneId}`);
       } else {
-        alert(data.error || 'Impossible d\'obtenir le code de jumelage');
+        setSaveSuccess('Paramètres sauvegardés.');
       }
+
+      await fetchStatus();
+      refreshAll();
     } catch (err: any) {
-      alert('Erreur: ' + err.message);
+      setSaveError(err.message || 'Erreur de validation auprès de Meta');
     } finally {
-      setIsRequestingCode(false);
+      setIsSaving(false);
     }
   };
 
-  const copyCode = () => {
-    if (!pairingCode) return;
-    navigator.clipboard.writeText(pairingCode);
-    setCodeCopied(true);
-    setTimeout(() => setCodeCopied(false), 2000);
-  };
-
-  const handleSendTest = async (e: React.FormEvent) => {
+  const handleSendTestMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!testNumber.trim() || !testText.trim()) return;
 
-    setTestSuccess(null);
+    setIsSendingTest(true);
+    setTestResult(null);
+
     try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/api/messages/send`, {
+      const res = await fetch('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phoneNumber: testNumber,
-          content: testText
+          phoneNumber: testNumber.trim(),
+          content: testText.trim(),
+          config: {
+            phoneNumberId: phoneNumberIdInput.trim(),
+            token: accessTokenInput.trim(),
+            verifyToken: verifyTokenInput.trim()
+          }
         })
       });
-      const ct = res.headers.get('content-type') || '';
-      if (!ct.includes('application/json')) {
-        throw new Error('Réponse invalide du serveur');
-      }
+
       const data = await res.json();
-      if (data.success) {
-        setTestSuccess(`Message envoyé avec succès (${data.via}) !`);
-      } else {
-        alert(data.error || 'Erreur lors de l\'envoi');
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Échec de l\'envoi Meta');
       }
+
+      setTestResult({
+        success: true,
+        message: 'Message officiel WhatsApp Cloud envoyé avec succès !',
+        messageId: data.messageId
+      });
     } catch (err: any) {
-      alert('Erreur: ' + err.message);
+      setTestResult({
+        success: false,
+        message: err.message || 'Erreur lors de l\'envoi'
+      });
+    } finally {
+      setIsSendingTest(false);
     }
   };
 
+  const isConnected = metaStatus?.status === 'connected' || (phoneNumberIdInput && accessTokenInput);
+
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6 overflow-y-auto h-full">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Connexion WhatsApp</h2>
-        <p className="text-slate-500 text-xs mt-1">
-          Liez votre numéro WhatsApp pour activer l'agent IA 24h/24 et 7j/7 sans compte Meta payant.
-        </p>
-      </div>
-
-      {/* Alerte explicative si backend cloud non relié */}
-      {isBackendReachable === false && (
-        <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl text-slate-800 space-y-3 shadow-xs animate-in fade-in">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-blue-100 rounded-xl text-blue-700 shrink-0 mt-0.5">
-              <Server className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="font-bold text-sm text-slate-900">
-                Mode 100% Cloud : Backend Render ou Railway requis
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Vercel héberge l'interface web (PWA). Pour que WhatsApp fonctionne <strong>24h/24 en toute autonomie sans ordinateur allumé</strong>, le backend Node.js doit être déployé sur un hébergeur cloud persistant comme <strong>Render</strong> ou <strong>Railway</strong>.
-              </p>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-blue-200/60 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-xs text-blue-900 font-medium">
-              <span>👉 Renseignez l'adresse de votre backend Cloud ci-dessous pour activer WhatsApp en 1 clic.</span>
-            </div>
-            {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
-              <a
-                href="http://localhost:5173"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs transition"
-              >
-                <Laptop className="w-3.5 h-3.5 text-slate-500" />
-                Accès testeur local (localhost:5173) ↗
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Main Connection Box */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        {whatsappState.status === 'connected' ? (
-          /* Connecté avec succès */
-          <div className="p-8 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-slate-900">WhatsApp est Connecté et Actif 24/7 !</h3>
-              <p className="text-sm text-slate-500 mt-1">
-                Numéro lié : <strong className="text-slate-800 font-semibold">{whatsappState.phoneNumber || 'Numéro WhatsApp actif'}</strong>
-              </p>
-              {whatsappState.lastConnectedAt && (
-                <p className="text-xs text-slate-400 mt-0.5">
-                  En ligne depuis le {new Date(whatsappState.lastConnectedAt).toLocaleString('fr-FR')}
-                </p>
-              )}
-            </div>
-
-            <div className="pt-4 flex items-center justify-center gap-3">
-              <button
-                onClick={handleDisconnect}
-                disabled={isDisconnecting}
-                className="flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-semibold transition"
-              >
-                <LogOut className="w-4 h-4" />
-                Déconnecter WhatsApp
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* En attente d'appairage */
-          <div>
-            {/* Onglets de choix de méthode */}
-            <div className="flex border-b border-slate-100 bg-slate-50/50">
-              <button
-                onClick={() => setConnectMethod('qr')}
-                className={`flex-1 py-3 px-4 text-xs font-semibold flex items-center justify-center gap-2 border-b-2 transition ${
-                  connectMethod === 'qr'
-                    ? 'border-emerald-600 text-emerald-700 bg-white'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <QrCode className="w-4 h-4" />
-                Méthode 1 : Scanner le QR Code
-              </button>
-
-              <button
-                onClick={() => setConnectMethod('code')}
-                className={`flex-1 py-3 px-4 text-xs font-semibold flex items-center justify-center gap-2 border-b-2 transition ${
-                  connectMethod === 'code'
-                    ? 'border-emerald-600 text-emerald-700 bg-white'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <KeyRound className="w-4 h-4" />
-                Méthode 2 : Code à 8 chiffres (Sans caméra)
-              </button>
-            </div>
-
-            {/* Contenu Méthode 1 : QR Code */}
-            {connectMethod === 'qr' && (
-              <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-slate-100 p-6">
-                <div className="md:col-span-6 p-4 flex flex-col items-center justify-center text-center space-y-4">
-                  {isBackendReachable === false ? (
-                    <div className="w-full max-w-sm p-6 rounded-2xl bg-blue-50/70 border-2 border-dashed border-blue-200 text-center flex flex-col items-center justify-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold shadow-xs">
-                        <Server className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">En attente du Backend Cloud</h4>
-                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                          Le QR Code s'affichera ici en direct dès que votre backend Render ou Railway sera connecté.
-                        </p>
-                      </div>
-                      <div className="w-full space-y-2 pt-1">
-                        <p className="text-[11px] text-blue-800 font-medium">
-                          👇 Renseignez l'URL de votre backend Render ou Railway dans la section ci-dessous.
-                        </p>
-                      </div>
-                    </div>
-                  ) : whatsappState.qrCodeDataUrl ? (
-                    <div className="p-4 bg-white border-2 border-emerald-500/20 rounded-2xl shadow-lg relative">
-                      <img
-                        src={whatsappState.qrCodeDataUrl}
-                        alt="WhatsApp QR Code"
-                        className="w-64 h-64 object-contain rounded-lg"
-                      />
-                      <div className="absolute inset-x-0 -bottom-3 flex justify-center">
-                        <span className="px-3 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold shadow-md animate-pulse">
-                          Prêt à être scanné
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="w-64 h-64 rounded-2xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center text-slate-400 gap-3">
-                      <RefreshCw className="w-8 h-8 animate-spin text-emerald-600" />
-                      <span className="text-xs font-medium">Génération du QR Code en cours...</span>
-                    </div>
-                  )}
-
-                  {isBackendReachable !== false && (
-                    <button
-                      onClick={handleReconnect}
-                      disabled={isReconnecting}
-                      className="mt-4 flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isReconnecting ? 'animate-spin' : ''}`} />
-                      Régénérer le QR Code
-                    </button>
-                  )}
-                </div>
-
-                <div className="md:col-span-6 p-6 space-y-4 flex flex-col justify-center text-xs">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Connexion par QR Code</h3>
-                    <p className="text-slate-500 mt-1">
-                      Scannez ce QR Code avec votre application WhatsApp mobile pour lier votre compte en 10 secondes.
-                    </p>
-                  </div>
-
-                  <ol className="space-y-2.5 text-slate-700">
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
-                      <span>Ouvrez <strong>WhatsApp</strong> sur votre téléphone.</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
-                      <span>Allez dans <strong>Réglages</strong> &gt; <strong>Appareils connectés</strong>.</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
-                      <span>Touchez <strong>Connecter un appareil</strong> et scannez ce QR code.</span>
-                    </li>
-                  </ol>
-
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px]">
-                    💡 <em>Si vous n'avez pas de caméra disponible, utilisez l'onglet ci-dessus <strong>"Méthode 2 : Code à 8 chiffres"</strong>.</em>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Contenu Méthode 2 : Pairing Code sans caméra */}
-            {connectMethod === 'code' && (
-              <div className="p-8 max-w-xl mx-auto space-y-6">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Jumelage par Code à 8 Chiffres (Sans Caméra)</h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Entrez votre numéro WhatsApp ci-dessous. Vous recevrez un code à taper directement dans WhatsApp sur votre téléphone. Aucun scan d'appareil photo requis !
-                  </p>
-                </div>
-
-                {isBackendReachable === false ? (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 space-y-2 text-xs">
-                    <p className="font-semibold">Le serveur WhatsApp n'est pas joignable depuis cette URL Vercel.</p>
-                    <p>Pour demander un code de jumelage, ouvrez l'application en local :</p>
-                    <a
-                      href="http://localhost:5173"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-emerald-700 font-bold underline"
-                    >
-                      Ouvrir http://localhost:5173 ↗
-                    </a>
-                  </div>
-                ) : (
-                  <form onSubmit={handleRequestPairingCode} className="space-y-3">
-                    <label className="block text-xs font-semibold text-slate-700">Votre numéro WhatsApp (avec indicatif pays) :</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        required
-                        placeholder="Ex: 33612345678 ou +33 6 12 34 56 78"
-                        value={phoneNumberInput}
-                        onChange={e => setPhoneNumberInput(e.target.value)}
-                        className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isRequestingCode || !phoneNumberInput.trim()}
-                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 disabled:opacity-50"
-                      >
-                        {isRequestingCode ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>
-                            <KeyRound className="w-4 h-4" />
-                            Obtenir le code
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                {/* Code de jumelage affiché */}
-                {pairingCode && (
-                  <div className="p-6 bg-emerald-50 border-2 border-emerald-300 rounded-2xl space-y-4 text-center">
-                    <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                      Votre Code de Jumelage WhatsApp :
-                    </p>
-                    <div className="flex items-center justify-center gap-3">
-                      <span className="text-3xl font-extrabold tracking-widest text-emerald-950 font-mono bg-white px-5 py-2.5 rounded-xl border border-emerald-200 shadow-sm">
-                        {pairingCode}
-                      </span>
-                      <button
-                        onClick={copyCode}
-                        className="p-2.5 bg-white hover:bg-emerald-100 border border-emerald-200 rounded-xl text-emerald-700 transition"
-                        title="Copier le code"
-                      >
-                        {codeCopied ? <Check className="w-5 h-5 text-emerald-600" /> : <Copy className="w-5 h-5" />}
-                      </button>
-                    </div>
-
-                    <div className="text-left bg-white p-4 rounded-xl border border-emerald-200 text-xs text-slate-700 space-y-2">
-                      <p className="font-bold text-emerald-900">Que faire sur votre téléphone maintenant ?</p>
-                      <ol className="list-decimal pl-4 space-y-1">
-                        <li>Ouvrez <strong>WhatsApp</strong>.</li>
-                        <li>Allez dans <strong>Réglages</strong> &gt; <strong>Appareils connectés</strong> &gt; <strong>Connecter un appareil</strong>.</li>
-                        <li>En bas de l'écran, appuyez sur : <strong>« Lier avec un numéro de téléphone à la place »</strong>.</li>
-                        <li>Entrez les 8 caractères affichés ci-dessus : <strong className="font-mono text-emerald-800">{pairingCode}</strong>.</li>
-                      </ol>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Configuration du Backend Cloud 24/7 (Render / Railway) */}
-      <div className="bg-white border border-slate-200/80 shadow-sm rounded-2xl p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Server className="w-4 h-4 text-emerald-600" />
-            <h3 className="text-sm font-bold text-slate-900">Liaison Vercel ➔ Backend Cloud 24/7 (Render / Railway)</h3>
-          </div>
-          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit ${
-            isBackendReachable
-              ? 'bg-emerald-100 text-emerald-800'
-              : 'bg-slate-100 text-slate-600'
-          }`}>
-            {isBackendReachable ? '● Backend Cloud connecté 24/7' : '○ Aucun backend cloud relié'}
-          </span>
-        </div>
-
-        <p className="text-xs text-slate-600 leading-relaxed">
-          Pour faire fonctionner WhatsApp sans laisser votre PC allumé, collez ici l'URL HTTPS de votre service hébergé sur <strong>Render</strong> (ex: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-mono text-[11px]">https://ia-plombier-backend.onrender.com</code>) ou <strong>Railway</strong>. Le frontend s'y connectera instantanément en API et WebSocket temps réel :
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="url"
-            placeholder="Ex: https://ia-plombier-backend.onrender.com"
-            value={customServerUrl}
-            onChange={e => setCustomServerUrl(e.target.value)}
-            className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-          <button
-            onClick={handleSaveCustomServer}
-            disabled={isTestingServer}
-            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition shrink-0 flex items-center justify-center gap-1.5 disabled:opacity-50"
-          >
-            {isTestingServer && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-            Enregistrer & Tester
-          </button>
-          {customServerUrl && (
-            <button
-              onClick={handleResetCustomServer}
-              className="px-3 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold transition shrink-0"
-            >
-              Effacer
-            </button>
-          )}
-        </div>
-
-        {serverTestFeedback && (
-          <div className={`text-xs p-3 rounded-xl flex items-center gap-2 ${
-            serverTestFeedback.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-              : 'bg-rose-50 text-rose-800 border border-rose-200'
-          }`}>
-            {serverTestFeedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
-            )}
-            <span>{serverTestFeedback.message}</span>
-          </div>
-        )}
-
-        {/* Aide pour déployer en 2 minutes */}
-        <div className="pt-2 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={() => setShowTunnelHelp(!showTunnelHelp)}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition"
-          >
-            <Terminal className="w-3.5 h-3.5 text-slate-400" />
-            <span>Comment déployer ce backend sur Render ou Railway en 2 minutes ?</span>
-            {showTunnelHelp ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
-          </button>
-
-          {showTunnelHelp && (
-            <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-3 text-slate-700 animate-in fade-in">
-              <div>
-                <p className="font-bold text-slate-900">Option 1 : Sur Render (Recommandé avec Disque Persistant) :</p>
-                <ol className="list-decimal pl-5 space-y-1 mt-1 text-slate-600">
-                  <li>Allez sur <strong>render.com</strong> &gt; <em>New +</em> &gt; <em>Web Service</em> &gt; Choisissez votre dépôt <strong>nxm310/ia-plombier</strong>.</li>
-                  <li>Build Command : <code className="bg-slate-200/80 px-1 rounded">npm install && npm run build:server</code></li>
-                  <li>Start Command : <code className="bg-slate-200/80 px-1 rounded">npm run start</code></li>
-                  <li>Dans <em>Advanced</em> &gt; <em>Add Disk</em> : Nommez-le <code className="bg-slate-200/80 px-1 rounded">data</code> avec le chemin de montage <code className="bg-slate-200/80 px-1 rounded">/var/data</code>.</li>
-                  <li>Cliquez sur <strong>Deploy Web Service</strong>. Une fois déployé, copiez l'adresse HTTPS et collez-la ci-dessus !</li>
-                </ol>
-              </div>
-
-              <div>
-                <p className="font-bold text-slate-900">Option 2 : Sur Railway :</p>
-                <ol className="list-decimal pl-5 space-y-1 mt-1 text-slate-600">
-                  <li>Allez sur <strong>railway.app</strong> &gt; <em>New Project</em> &gt; <em>Deploy from GitHub repo</em>.</li>
-                  <li>Sélectionnez <strong>nxm310/ia-plombier</strong>. Le fichier <code className="bg-slate-200/80 px-1 rounded">railway.json</code> et le <code className="bg-slate-200/80 px-1 rounded">Procfile</code> sont détectés automatiquement.</li>
-                  <li>Ajoutez un <strong>Volume</strong> monté sur <code className="bg-slate-200/80 px-1 rounded">/data</code>.</li>
-                  <li>Générez un domaine public (Settings &gt; Generate Domain) et collez l'URL ci-dessus.</li>
-                </ol>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Test Message Form */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+      {/* En-tête */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-slate-900">Tester l'envoi d'un message WhatsApp</h3>
-          <p className="text-xs text-slate-500">
-            Envoyez un message test vers votre propre numéro pour valider la transmission.
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">WhatsApp Cloud API (Officiel Meta)</h2>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-600" />
+              0 €/mois · 1 000 conv. offertes
+            </span>
+          </div>
+          <p className="text-slate-500 text-xs mt-1">
+            Connecteur officiel WhatsApp Business Platform. 100 % hébergé sur Vercel, sans serveur Node.js lourd, sans QR code et sans PC allumé.
           </p>
         </div>
 
-        <form onSubmit={handleSendTest} className="space-y-3 text-xs">
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs ${
+            isConnected
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+              : 'bg-amber-50 border border-amber-200 text-amber-800'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            {isConnected ? 'API Meta Active 24/7' : 'Configuration Requise'}
+          </span>
+        </div>
+      </div>
+
+      {/* Bannière de confirmation Serverless */}
+      <div className="p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 rounded-2xl text-slate-800 space-y-2 shadow-xs">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-emerald-600 text-white rounded-xl shrink-0 mt-0.5 shadow-xs">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-bold text-sm text-slate-900">
+              Solution Officielle Recommandée : Zéro Risque, Zéro Machine Locale
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Contrairement à Baileys qui simule WhatsApp Web et risque d'être bloqué, l'<strong>API WhatsApp Cloud de Meta</strong> est le canal officiel pour les professionnels. Elle tourne directement sur les fonctions Serverless de Vercel à chaque message reçu et ne consomme aucune ressource continue.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Cartes Clés Webhook Vercel à Copier */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* URL du Webhook */}
+        <div className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-sm space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Server className="w-4 h-4 text-emerald-600" />
+              1. URL de Rappel (Callback URL)
+            </span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">À coller dans Meta</span>
+          </div>
+          <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <code className="text-xs font-mono text-slate-800 select-all truncate flex-1">{webhookUrl}</code>
+            <button
+              onClick={() => copyToClipboard(webhookUrl, 'webhook')}
+              className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs transition"
+              title="Copier l'URL du Webhook"
+            >
+              {copiedField === 'webhook' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            C'est l'URL Vercel qui recevra instantanément les messages de vos clients.
+          </p>
+        </div>
+
+        {/* Jeton de Vérification (Verify Token) */}
+        <div className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-sm space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <KeyRound className="w-4 h-4 text-emerald-600" />
+              2. Jeton de Vérification (Verify Token)
+            </span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Secret Partagé</span>
+          </div>
+          <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <code className="text-xs font-mono text-slate-800 select-all truncate flex-1">{verifyTokenInput}</code>
+            <button
+              onClick={() => copyToClipboard(verifyTokenInput, 'verify')}
+              className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs transition"
+              title="Copier le Verify Token"
+            >
+              {copiedField === 'verify' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            À renseigner dans Meta lors de la configuration du Webhook.
+          </p>
+        </div>
+      </div>
+
+      {/* Formulaire des Identifiants Meta Cloud */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-6 space-y-5">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Identifiants WhatsApp Business (Meta)</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Récupérez ces 2 valeurs depuis votre tableau de bord <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-emerald-700 font-semibold underline">Meta for Developers</a>.
+          </p>
+        </div>
+
+        <form onSubmit={handleSaveCredentials} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                ID du numéro de téléphone (Phone Number ID) :
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: 104928374829102"
+                value={phoneNumberIdInput}
+                onChange={e => setPhoneNumberIdInput(e.target.value)}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">Trouvable dans WhatsApp &gt; Configuration de l'API sur Meta.</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Jeton de vérification Webhook (Optionnel) :
+              </label>
+              <input
+                type="text"
+                value={verifyTokenInput}
+                onChange={e => setVerifyTokenInput(e.target.value)}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">Par défaut : ia_plombier_token_2026.</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Jeton d'accès (Access Token Meta) :
+            </label>
+            <input
+              type="password"
+              placeholder="Ex: EAAG... (Jeton temporaire ou Jeton d'utilisateur système permanent)"
+              value={accessTokenInput}
+              onChange={e => setAccessTokenInput(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Pour des tests immédiats, utilisez le jeton temporaire (valide 24h). Pour la production, créez un utilisateur système permanent dans Meta Business Manager.
+            </p>
+          </div>
+
+          {saveSuccess && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{saveSuccess}</span>
+            </div>
+          )}
+
+          {saveError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{saveError}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 shadow-xs disabled:opacity-50"
+            >
+              {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+              Enregistrer & Valider avec Meta
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Formulaire de Test d'Envoi WhatsApp Officiel */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-6 space-y-4">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Tester l'envoi d'un message officiel WhatsApp</h3>
+          <p className="text-xs text-slate-500">
+            Envoyez un message vers votre propre numéro pour valider que Meta expédie correctement les messages.
+          </p>
+        </div>
+
+        <form onSubmit={handleSendTestMessage} className="space-y-3 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-medium text-slate-700 mb-1">Numéro de destination</label>
+              <label className="block font-medium text-slate-700 mb-1">Numéro de destination :</label>
               <input
                 type="text"
                 required
                 placeholder="+33 6 12 34 56 78"
                 value={testNumber}
-                onChange={e => setTestNumber(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                onChange={e => setTestNumber(autoFormatPhone(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono"
               />
             </div>
             <div>
-              <label className="block font-medium text-slate-700 mb-1">Message</label>
+              <label className="block font-medium text-slate-700 mb-1">Message :</label>
               <input
                 type="text"
                 required
                 value={testText}
                 onChange={e => setTestText(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-1">
-            {testSuccess && (
-              <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> {testSuccess}
-              </span>
-            )}
+          {testResult && (
+            <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+              testResult.success
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border border-rose-200 text-rose-800'
+            }`}>
+              {testResult.success ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />}
+              <div>
+                <span>{testResult.message}</span>
+                {testResult.messageId && (
+                  <span className="block font-mono text-[10px] text-emerald-700 mt-0.5">ID: {testResult.messageId}</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-1">
             <button
               type="submit"
-              disabled={isBackendReachable === false}
-              className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition disabled:opacity-50"
+              disabled={isSendingTest}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
             >
-              <Send className="w-3.5 h-3.5" />
-              Envoyer le test
+              {isSendingTest ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              Envoyer le message test
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Guide Pas-à-Pas Développeur Meta */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-6 space-y-4">
+        <button
+          type="button"
+          onClick={() => setShowMetaGuide(!showMetaGuide)}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <div className="flex items-center gap-2">
+            <HelpCircle className="w-4 h-4 text-emerald-600" />
+            <h3 className="text-sm font-bold text-slate-900">
+              Guide Rapide : Obtenir mes accès gratuits sur Meta for Developers en 3 minutes
+            </h3>
+          </div>
+          {showMetaGuide ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </button>
+
+        {showMetaGuide && (
+          <div className="pt-2 border-t border-slate-100 text-xs space-y-4 text-slate-600 animate-in fade-in">
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-xs">1</span>
+                <div>
+                  <p className="font-semibold text-slate-800">Créez votre compte Développeur Meta (100% gratuit) :</p>
+                  <p className="mt-0.5">
+                    Rendez-vous sur <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-emerald-700 font-medium underline inline-flex items-center gap-0.5">developers.facebook.com <ExternalLink className="w-3 h-3" /></a> et connectez-vous avec votre compte Facebook standard.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-xs">2</span>
+                <div>
+                  <p className="font-semibold text-slate-800">Créez une Application :</p>
+                  <p className="mt-0.5">
+                    Cliquez sur <strong>« Mes apps »</strong> &gt; <strong>« Créer une app »</strong> &gt; Sélectionnez le cas d'usage <strong>« Autre »</strong> ou <strong>« Entreprise » (Business)</strong>. Donnez-lui un nom (ex: <em>Assistant Plombier</em>).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-xs">3</span>
+                <div>
+                  <p className="font-semibold text-slate-800">Ajoutez le produit WhatsApp :</p>
+                  <p className="mt-0.5">
+                    Dans le tableau de bord de votre app, trouvez <strong>WhatsApp</strong> et cliquez sur <strong>« Configurer »</strong>.
+                    Meta vous attribue immédiatement un <strong>numéro de test gratuit</strong>, un <strong>Phone Number ID</strong> et un <strong>Jeton temporaire</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-xs">4</span>
+                <div>
+                  <p className="font-semibold text-slate-800">Configurez le Webhook Vercel :</p>
+                  <p className="mt-0.5">
+                    Dans le menu de gauche, allez dans <strong>WhatsApp</strong> &gt; <strong>Configuration</strong> &gt; section <strong>Webhook</strong> :
+                  </p>
+                  <ul className="list-disc pl-5 mt-1 space-y-0.5 text-slate-700">
+                    <li>URL de rappel : collez <code className="bg-slate-100 px-1 py-0.5 rounded text-emerald-800 font-mono">{webhookUrl}</code></li>
+                    <li>Jeton de vérification : collez <code className="bg-slate-100 px-1 py-0.5 rounded text-emerald-800 font-mono">{verifyTokenInput}</code></li>
+                    <li>Cliquez sur <strong>« Vérifier et enregistrer »</strong>. Meta validera instantanément la liaison !</li>
+                    <li>Dans les champs du webhook, cliquez sur <strong>Gérer</strong> et cochez la case <strong>messages</strong>.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 text-xs">5</span>
+                <div>
+                  <p className="font-semibold text-slate-800">Bravo, c'est terminé !</p>
+                  <p className="mt-0.5">
+                    Désormais, tout client qui envoie un message sur WhatsApp déclenche votre fonction Vercel Serverless. Clara (l'IA) analyse la demande et répond en moins de 2 secondes, 24h/24 et 7j/7 sans aucun serveur payant.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

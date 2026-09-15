@@ -72,3 +72,5 @@ export function handlePhoneInputChange(value: string): string {
   }
   return value;
 }
+
+export const autoFormatPhone = handlePhoneInputChange;
