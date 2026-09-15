@@ -18,10 +18,14 @@ import { useApp } from '../context/AppContext';
 import { handlePhoneInputChange } from '../utils/phone';
 
 export const WhatsAppConnect: React.FC = () => {
-  const { whatsappState, refreshAll } = useApp();
+  const { whatsappState, refreshAll, customServerUrl, setCustomServerUrl, isBackendConnected } = useApp();
   const [connectMethod, setConnectMethod] = useState<'qr' | 'code'>('qr');
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  // Cloud server state
+  const [serverUrlInput, setServerUrlInput] = useState(customServerUrl);
+  const [serverSaveSuccess, setServerSaveSuccess] = useState(false);
 
   // Pairing code state
   const [phoneNumberInput, setPhoneNumberInput] = useState('');
@@ -34,11 +38,12 @@ export const WhatsAppConnect: React.FC = () => {
   const [testText, setTestText] = useState('Bonjour, ceci est un test de connexion WhatsApp !');
   const [testSuccess, setTestSuccess] = useState<string | null>(null);
 
-  const isRemoteHost = typeof window !== 'undefined' &&
-    window.location.hostname !== 'localhost' &&
-    window.location.hostname !== '127.0.0.1' &&
-    !window.location.hostname.startsWith('192.168.') &&
-    !window.location.hostname.startsWith('10.');
+  const handleSaveServerUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomServerUrl(serverUrlInput);
+    setServerSaveSuccess(true);
+    setTimeout(() => setServerSaveSuccess(false), 3000);
+  };
 
   const handleReconnect = async () => {
     setIsReconnecting(true);
@@ -47,7 +52,7 @@ export const WhatsAppConnect: React.FC = () => {
       const res = await fetch('/api/whatsapp/reset', { method: 'POST' });
       if (!res.ok) {
         if (res.status === 404 || res.status === 405) {
-          throw new Error("Le serveur WhatsApp local n'est pas joignable depuis cette adresse web. Veuillez ouvrir l'application sur http://localhost:5173 sur votre Mac.");
+          throw new Error("Le serveur backend n'est pas joignable depuis cette adresse. Déployez votre backend sur Railway/Render ou renseignez son adresse ci-dessous.");
         }
         throw new Error(`Erreur serveur (${res.status})`);
       }
@@ -91,7 +96,7 @@ export const WhatsAppConnect: React.FC = () => {
 
       if (!res.ok) {
         if (res.status === 404 || res.status === 405) {
-          throw new Error("Le serveur WhatsApp Baileys tourne sur votre Mac en local. Vous êtes actuellement sur une page statique (" + window.location.hostname + "). Ouvrez l'application sur http://localhost:5173 pour connecter WhatsApp.");
+          throw new Error("Le serveur backend Cloud n'est pas joignable depuis cette adresse. Vérifiez votre URL de serveur Cloud ci-dessous ou ouvrez directement l'URL Railway.");
         }
         const text = await res.text().catch(() => '');
         throw new Error(`Erreur serveur (${res.status}) : ${text.slice(0, 150)}`);
@@ -99,7 +104,7 @@ export const WhatsAppConnect: React.FC = () => {
 
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
-        throw new Error("Le serveur n'a pas retourné de réponse JSON valide. Ouvrez l'application locale sur http://localhost:5173");
+        throw new Error("Le serveur n'a pas retourné de réponse JSON valide.");
       }
 
       const data = await res.json();
@@ -152,39 +157,54 @@ export const WhatsAppConnect: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6 overflow-y-auto h-full">
-      {/* Alerte si ouvert sur GitHub Pages ou hébergeur distant */}
-      {isRemoteHost && (
-        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl text-amber-900 text-xs space-y-2.5 shadow-sm">
-          <div className="flex items-center gap-2 font-bold text-sm text-amber-950">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-            Connexion requise sur l'application locale
+      {/* Panneau Cloud & Indépendance Mobile */}
+      {!isBackendConnected && (
+        <div className="p-5 bg-gradient-to-br from-indigo-50 via-slate-50 to-emerald-50 border-2 border-indigo-200/80 rounded-2xl text-slate-800 text-xs space-y-3.5 shadow-sm">
+          <div className="flex items-center gap-2 font-bold text-sm text-indigo-950">
+            <Smartphone className="w-5 h-5 text-indigo-600 shrink-0" />
+            Mode Cloud & Mobile Autonome 24h/24
           </div>
-          <p className="leading-relaxed">
-            Vous consultez actuellement l'application depuis <strong>{window.location.hostname}</strong>. 
-            Comme convenu en mode <strong>monoposte direct</strong>, le moteur WhatsApp (Baileys) s'exécute sur votre Mac. 
-            Les sites web statiques distants (GitHub Pages / Vercel) ne peuvent pas maintenir la connexion WhatsApp en direct.
+          <p className="leading-relaxed text-slate-600">
+            Pour que l'agent WhatsApp réponde <strong>24h/24 et 7j/7</strong> sans laisser aucun ordinateur ou Mac allumé, 
+            le connecteur WhatsApp tourne dans le Cloud (ex: Railway ou Render).
           </p>
-          <div className="pt-1 flex flex-wrap items-center gap-3">
+
+          <form onSubmit={handleSaveServerUrl} className="flex flex-col sm:flex-row gap-2 pt-1">
+            <input
+              type="url"
+              placeholder="https://votre-app.up.railway.app"
+              value={serverUrlInput}
+              onChange={e => setServerUrlInput(e.target.value)}
+              className="flex-1 px-3 py-2 border border-indigo-200 bg-white rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 font-mono"
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-xs whitespace-nowrap"
+            >
+              Connecter ce serveur Cloud
+            </button>
+          </form>
+
+          {serverSaveSuccess && (
+            <p className="text-emerald-700 font-semibold flex items-center gap-1">
+              <CheckCircle2 className="w-4 h-4" /> Adresse du serveur enregistrée ! Reconnexion en cours...
+            </p>
+          )}
+
+          <div className="pt-2 border-t border-indigo-100 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500">
+            <span>💡 <strong>Astuce :</strong> Si vous ouvrez directement l'adresse de votre serveur Cloud sur votre téléphone, la connexion est 100% automatique sans rien configurer.</span>
             <a
-              href="http://localhost:5173"
+              href="https://railway.com"
               target="_blank"
               rel="noreferrer"
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-1.5 transition shadow-xs"
+              className="font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
             >
-              <ExternalLink className="w-4 h-4" />
-              Ouvrir l'application locale (http://localhost:5173)
-            </a>
-            <a
-              href="http://192.168.50.174:5173"
-              target="_blank"
-              rel="noreferrer"
-              className="px-3.5 py-2 bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 font-semibold rounded-xl flex items-center gap-1.5 transition"
-            >
-              📱 Accès Mobile Wi-Fi (192.168.50.174:5173)
+              <ExternalLink className="w-3.5 h-3.5" /> Déployer sur Railway
             </a>
           </div>
         </div>
       )}
+
 
       {/* Header */}
       <div>

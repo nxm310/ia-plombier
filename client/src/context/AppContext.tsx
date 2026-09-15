@@ -13,16 +13,35 @@ interface AppContextType {
   lastIncomingMessage: { contact: Contact; message: Message } | null;
   triggerRefresh: number;
   refreshAll: () => void;
+  customServerUrl: string;
+  setCustomServerUrl: (url: string) => void;
+  isBackendConnected: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function getApiBaseUrl(): string {
+  if (typeof window === 'undefined') return '';
+  const custom = localStorage.getItem('pme_custom_server_url');
+  if (custom && custom.trim()) {
+    return custom.trim().replace(/\/+$/, '');
+  }
   return '';
 }
 
 export function getWsBaseUrl(): string | null {
   if (typeof window === 'undefined') return null;
+  const custom = localStorage.getItem('pme_custom_server_url');
+  if (custom && custom.trim()) {
+    const clean = custom.trim().replace(/\/+$/, '');
+    const wsProto = clean.startsWith('https://') ? 'wss:' : 'ws:';
+    const host = clean.replace(/^https?:\/\//, '');
+    return `${wsProto}//${host}/ws`;
+  }
+  // Ne pas tenter de connexion WS sur GitHub Pages sans serveur externe configuré
+  if (window.location.hostname.includes('github.io')) {
+    return null;
+  }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/ws`;
 }
@@ -33,6 +52,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [conversationMobileView, setConversationMobileView] = useState<'list' | 'chat'>('list');
   const [triggerRefresh, setTriggerRefresh] = useState(0);
   const [lastIncomingMessage, setLastIncomingMessage] = useState<{ contact: Contact; message: Message } | null>(null);
+  const [customServerUrl, setCustomServerUrlState] = useState<string>(() => {
+    return localStorage.getItem('pme_custom_server_url') || '';
+  });
+  const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
+
+  const setCustomServerUrl = (url: string) => {
+    const clean = url.trim().replace(/\/+$/, '');
+    if (clean) {
+      localStorage.setItem('pme_custom_server_url', clean);
+    } else {
+      localStorage.removeItem('pme_custom_server_url');
+    }
+    setCustomServerUrlState(clean);
+    refreshAll();
+  };
+
   const [whatsappState, setWhatsappState] = useState<WhatsAppState>({
     status: 'disconnected',
     qrCodeDataUrl: null,
@@ -61,12 +96,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return res.json();
         })
         .then(data => {
+          setIsBackendConnected(true);
           if (data && typeof data.status === 'string') {
             setWhatsappState(data);
           }
         })
         .catch(err => {
-          // Si on est sur un serveur statique (ex: GitHub Pages), ignorer l'erreur silencieusement
+          setIsBackendConnected(false);
           console.debug('Status check WhatsApp:', err.message);
         });
     };
@@ -83,6 +119,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const connectWs = () => {
       try {
         ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          setIsBackendConnected(true);
+        };
 
         ws.onmessage = (event) => {
           try {
@@ -138,7 +178,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openConversation,
         lastIncomingMessage,
         triggerRefresh,
-        refreshAll
+        refreshAll,
+        customServerUrl,
+        setCustomServerUrl,
+        isBackendConnected
       }}
     >
       {children}

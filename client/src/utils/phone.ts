@@ -74,3 +74,31 @@ export function handlePhoneInputChange(value: string): string {
 }
 
 export const autoFormatPhone = handlePhoneInputChange;
+
+/**
+ * Nettoie un numéro de téléphone pour l'utiliser dans un lien wa.me (chiffres uniquement avec préfixe pays)
+ */
+export function getCleanWhatsAppDigits(phone: string): string {
+  if (!phone) return '';
+  let clean = phone.replace(/[\s.\-_/()+]/g, '');
+  if (clean.startsWith('0033')) {
+    clean = '33' + clean.slice(4);
+  } else if (clean.startsWith('0') && clean.length === 10) {
+    clean = '33' + clean.slice(1);
+  }
+  return clean;
+}
+
+/**
+ * Construit une URL wa.me pour ouvrir directement WhatsApp avec un message pré-rempli
+ */
+export function buildWhatsAppUrl(phone: string, message?: string): string {
+  const digits = getCleanWhatsAppDigits(phone);
+  if (!digits) return '';
+  const baseUrl = `https://wa.me/${digits}`;
+  if (message) {
+    return `${baseUrl}?text=${encodeURIComponent(message)}`;
+  }
+  return baseUrl;
+}
+

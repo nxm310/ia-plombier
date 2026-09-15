@@ -35,11 +35,27 @@ import {
 } from '../services/cloudSync';
 import { INDUSTRY_PRESETS } from '../data/industryPresets';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
-import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
+import { formatWhatsAppPhone, handlePhoneInputChange, buildWhatsAppUrl } from '../utils/phone';
+import {
+  generateClientGoogleCalendarUrl,
+  downloadClientIcsFile,
+  formatClientAppointmentMessage,
+  formatCollaboratorMissionMessage
+} from '../utils/calendar';
 
 export const Appointments: React.FC = () => {
   const { triggerRefresh, refreshAll, selectedContactId, setSelectedContactId } = useApp();
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>(() => {
+    const cached = localStorage.getItem('pme_local_appointments');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
     const cached = localStorage.getItem('pme_team_members');
     if (cached) {
@@ -116,6 +132,15 @@ export const Appointments: React.FC = () => {
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [conflictError, setConflictError] = useState<{ error: string; suggestedSlot?: string } | null>(null);
   const [cloudAppointments, setCloudAppointments] = useState<CloudAppointment[]>([]);
+  const [createdSuccessApt, setCreatedSuccessApt] = useState<{
+    appointment: Appointment;
+    clientPhone?: string | null;
+    clientName?: string | null;
+    collabPhone?: string | null;
+    collabName?: string | null;
+    notifyClient: boolean;
+    notifyCollab: boolean;
+  } | null>(null);
 
   // Ajout rapide client depuis la modale de prise de rendez-vous
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
@@ -271,9 +296,20 @@ export const Appointments: React.FC = () => {
 
   useEffect(() => {
     fetch('/api/appointments')
-      .then(res => res.json())
-      .then(data => setAppointments(data))
-      .catch(err => console.error('Erreur appointments:', err));
+      .then(res => {
+        if (!res.ok) throw new Error('Status ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setAppointments(data);
+          localStorage.setItem('pme_local_appointments', JSON.stringify(data));
+        }
+      })
+      .catch(err => {
+        console.warn('Backend appointments non joignable (utilisation cache local):', err.message);
+      });
+
 
     fetch('/api/team')
       .then(res => {
@@ -482,6 +518,33 @@ export const Appointments: React.FC = () => {
       }
     }
 
+    const localApt: Appointment = {
+      id: Date.now(),
+      contact_id: Number(formContactId) || 0,
+      team_member_id: formTeamMemberId ? Number(formTeamMemberId) : null,
+      service_id: formServiceId ? Number(formServiceId) : null,
+      title: formTitle,
+      date: formDate,
+      start_time: startTime,
+      end_time: endTime,
+      status: 'confirmed',
+      notes: formNotes || null,
+      document_url: docUrl,
+      document_name: docName,
+      source: 'manual',
+      collaborator_status: 'pending',
+      collaborator_accepted_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      contact_name: selectedContact ? (selectedContact.name || selectedContact.phone_number) : 'Client',
+      contact_phone: selectedContact?.phone_number || null,
+      team_member_name: selectedMember?.name || null,
+      service_name: selectedService?.name || null
+    };
+
+    let finalApt = localApt;
+    let backendHandledNotifs = false;
+
     try {
       const res = await fetch('/api/appointments', {
         method: 'POST',
@@ -506,69 +569,142 @@ export const Appointments: React.FC = () => {
         })
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Erreur serveur (${res.status})`);
+      if (res.ok) {
+        const createdApt = await res.json();
+        if (createdApt && createdApt.id) {
+          finalApt = createdApt;
+          backendHandledNotifs = true;
+        }
+      } else {
+        console.warn(`Serveur API indisponible ou en lecture seule (${res.status}), basculement en mode local & WhatsApp direct.`);
       }
-
-      const createdApt = await res.json();
-      setAppointments(prev => [createdApt, ...prev.filter(a => a.id !== createdApt.id)]);
-
-      setIsModalOpen(false);
-      setIsAllDay(false);
-      setAttachedFile(null);
-      setConflictError(null);
-      setFormTitle('');
-      setFormNotes('');
-      setFormContactId('');
-      refreshAll();
     } catch (err: any) {
-      console.error('Erreur création RDV:', err);
-      alert('Erreur lors de la création du rendez-vous : ' + (err.message || 'Échec de la validation'));
+      console.warn('Mode déconnecté ou hébergeur statique :', err);
+    }
+
+    // Toujours enregistrer et afficher le RDV dans l'agenda !
+    setAppointments(prev => {
+      const next = [finalApt, ...prev.filter(a => a.id !== finalApt.id)];
+      localStorage.setItem('pme_local_appointments', JSON.stringify(next));
+      return next;
+    });
+
+    setIsModalOpen(false);
+    setIsAllDay(false);
+    setAttachedFile(null);
+    setConflictError(null);
+    setFormTitle('');
+    setFormNotes('');
+    setFormContactId('');
+    refreshAll();
+
+    // Si le backend n'a pas géré l'envoi WhatsApp en arrière-plan (ex: GitHub Pages / mode statique), proposer l'envoi immédiat en 1 clic
+    if (!backendHandledNotifs && (notifyClientOnCreate || notifyCollaboratorOnCreate)) {
+      setCreatedSuccessApt({
+        appointment: finalApt,
+        clientPhone: selectedContact?.phone_number || null,
+        clientName: selectedContact?.name || selectedContact?.phone_number || null,
+        collabPhone: selectedMember?.phone || null,
+        collabName: selectedMember?.name || null,
+        notifyClient: notifyClientOnCreate && !!selectedContact?.phone_number,
+        notifyCollab: notifyCollaboratorOnCreate && !!selectedMember?.phone
+      });
     }
   };
 
-  const handleSendWhatsAppNotification = async (appointmentId: number) => {
+  const handleSendWhatsAppNotification = async (appointmentId: number | string) => {
     setIsSendingNotif(true);
     setNotifFeedback(null);
+    const apt = effectiveAppointments.find(a => String(a.id) === String(appointmentId)) || selectedAppointment;
+    const clientPhone = apt?.contact_phone || contacts.find(c => c.id === apt?.contact_id)?.phone_number;
+
+    let sentViaServer = false;
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/notify-client`, {
         method: 'POST'
       });
-      if (!res.ok) throw new Error('Erreur lors de l\'envoi');
-      setNotifFeedback('✅ Notification envoyée au client avec lien d\'agenda !');
-      refreshAll();
-      setTimeout(() => setNotifFeedback(null), 4000);
-    } catch (err: any) {
-      console.error('Erreur notify client:', err);
-      setNotifFeedback('❌ Échec de l\'envoi');
-      setTimeout(() => setNotifFeedback(null), 4000);
-    } finally {
-      setIsSendingNotif(false);
+      if (res.ok) {
+        sentViaServer = true;
+        setNotifFeedback('✅ Notification envoyée au client via WhatsApp !');
+        refreshAll();
+        setTimeout(() => setNotifFeedback(null), 4000);
+      }
+    } catch (err) {
+      // Backend non joignable
     }
+
+    if (!sentViaServer) {
+      if (clientPhone) {
+        const msg = formatClientAppointmentMessage({
+          title: apt?.title || 'Rendez-vous',
+          date: apt?.date || currentDate,
+          startTime: apt?.start_time || '09:00',
+          endTime: apt?.end_time || '10:00',
+          contactName: apt?.contact_name,
+          teamMemberName: apt?.team_member_name,
+          serviceName: apt?.service_name,
+          notes: apt?.notes
+        });
+        const waUrl = buildWhatsAppUrl(clientPhone, msg);
+        window.open(waUrl, '_blank');
+        setNotifFeedback('📲 WhatsApp ouvert avec le message pré-rempli pour le client !');
+        setTimeout(() => setNotifFeedback(null), 5000);
+      } else {
+        setNotifFeedback('⚠️ Aucun numéro de téléphone trouvé pour ce client.');
+        setTimeout(() => setNotifFeedback(null), 4000);
+      }
+    }
+    setIsSendingNotif(false);
   };
 
-  const handleSendCollaboratorNotification = async (appointmentId: number) => {
+  const handleSendCollaboratorNotification = async (appointmentId: number | string) => {
     setIsSendingCollabNotif(true);
     setCollabNotifFeedback(null);
+    const apt = effectiveAppointments.find(a => String(a.id) === String(appointmentId)) || selectedAppointment;
+    const member = teamMembers.find(m => m.id === apt?.team_member_id);
+    const collabPhone = member?.phone;
+
+    let sentViaServer = false;
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/notify-collaborator`, {
         method: 'POST'
       });
-      if (!res.ok) throw new Error('Erreur lors de l\'envoi');
-      setCollabNotifFeedback('✅ Ordre de mission envoyé au collaborateur sur WhatsApp !');
-      refreshAll();
-      setTimeout(() => setCollabNotifFeedback(null), 4000);
-    } catch (err: any) {
-      console.error('Erreur notify collaborator:', err);
-      setCollabNotifFeedback('❌ Échec de l\'envoi au collaborateur');
-      setTimeout(() => setCollabNotifFeedback(null), 4000);
-    } finally {
-      setIsSendingCollabNotif(false);
+      if (res.ok) {
+        sentViaServer = true;
+        setCollabNotifFeedback('✅ Ordre de mission envoyé au collaborateur sur WhatsApp !');
+        refreshAll();
+        setTimeout(() => setCollabNotifFeedback(null), 4000);
+      }
+    } catch (err) {
+      // Backend non joignable
     }
+
+    if (!sentViaServer) {
+      if (collabPhone) {
+        const msg = formatCollaboratorMissionMessage({
+          title: apt?.title || 'Mission',
+          date: apt?.date || currentDate,
+          startTime: apt?.start_time || '09:00',
+          endTime: apt?.end_time || '10:00',
+          contactName: apt?.contact_name,
+          contactPhone: apt?.contact_phone,
+          teamMemberName: member?.name || apt?.team_member_name,
+          serviceName: apt?.service_name,
+          notes: apt?.notes
+        });
+        const waUrl = buildWhatsAppUrl(collabPhone, msg);
+        window.open(waUrl, '_blank');
+        setCollabNotifFeedback('👷 WhatsApp ouvert avec l\'ordre de mission pour le collaborateur !');
+        setTimeout(() => setCollabNotifFeedback(null), 5000);
+      } else {
+        setCollabNotifFeedback('⚠️ Aucun numéro de téléphone trouvé pour ce collaborateur.');
+        setTimeout(() => setCollabNotifFeedback(null), 4000);
+      }
+    }
+    setIsSendingCollabNotif(false);
   };
 
-  const handleMarkCollaboratorAccepted = async (appointmentId: number) => {
+  const handleMarkCollaboratorAccepted = async (appointmentId: number | string) => {
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/collaborator-accept`, {
         method: 'POST',
@@ -600,7 +736,13 @@ export const Appointments: React.FC = () => {
         }).catch(() => {});
       }
 
-      if (selectedAppointment && selectedAppointment.id === id) {
+      setAppointments(prev => {
+        const next = prev.map(a => String(a.id) === String(id) ? { ...a, status: status as any } : a);
+        localStorage.setItem('pme_local_appointments', JSON.stringify(next));
+        return next;
+      });
+
+      if (selectedAppointment && String(selectedAppointment.id) === String(id)) {
         setSelectedAppointment(prev => prev ? { ...prev, status: status as any } : null);
       }
       refreshAll();
@@ -619,6 +761,12 @@ export const Appointments: React.FC = () => {
       if (typeof id === 'number' || !isNaN(Number(id))) {
         await fetch(`/api/appointments/${id}`, { method: 'DELETE' }).catch(() => {});
       }
+
+      setAppointments(prev => {
+        const next = prev.filter(a => String(a.id) !== String(id));
+        localStorage.setItem('pme_local_appointments', JSON.stringify(next));
+        return next;
+      });
 
       setSelectedAppointment(null);
       refreshAll();
@@ -1300,27 +1448,33 @@ export const Appointments: React.FC = () => {
                     Boutons d'ajout rapide (cliquables) :
                   </span>
                   <a
-                    href={`/api/appointments/${selectedAppointment.id}/google`}
+                    href={generateClientGoogleCalendarUrl({
+                      title: selectedAppointment.service_name ? `Intervention : ${selectedAppointment.service_name}` : selectedAppointment.title,
+                      date: selectedAppointment.date,
+                      startTime: selectedAppointment.start_time,
+                      endTime: selectedAppointment.end_time,
+                      details: `Intervention avec ${selectedAppointment.team_member_name || 'Notre équipe'}.${selectedAppointment.notes ? `\nPrécisions : ${selectedAppointment.notes}` : ''}`
+                    })}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1"
                   >
                     📅 Google Agenda
                   </a>
-                  <a
-                    href={`/api/appointments/${selectedAppointment.id}/apple`}
-                    className="px-2.5 py-1.5 bg-black hover:bg-neutral-800 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={() => downloadClientIcsFile({
+                      id: selectedAppointment.id,
+                      title: selectedAppointment.service_name ? `Intervention : ${selectedAppointment.service_name}` : selectedAppointment.title,
+                      date: selectedAppointment.date,
+                      startTime: selectedAppointment.start_time,
+                      endTime: selectedAppointment.end_time,
+                      details: `Intervention avec ${selectedAppointment.team_member_name || 'Notre équipe'}.${selectedAppointment.notes ? `\nPrécisions : ${selectedAppointment.notes}` : ''}`
+                    })}
+                    className="px-2.5 py-1.5 bg-black hover:bg-neutral-800 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer"
                   >
-                    🍏 Apple Calendrier
-                  </a>
-                  <a
-                    href={`/api/appointments/${selectedAppointment.id}/calendar`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-[11px] rounded-lg transition flex items-center gap-1"
-                  >
-                    🔗 Ouvrir page client
-                  </a>
+                    🍏 Apple Calendrier (.ics)
+                  </button>
                 </div>
               </div>
 
@@ -1880,6 +2034,139 @@ export const Appointments: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal Confirmation & Envoi WhatsApp 1-Clic */}
+      {createdSuccessApt && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in duration-150 space-y-4">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Rendez-vous enregistré avec succès !</h3>
+              <p className="text-xs text-slate-500">
+                L'intervention a été ajoutée à votre agenda ({createdSuccessApt.appointment.date} à {createdSuccessApt.appointment.start_time}).
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5 text-slate-700">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Intervention :</span>
+                <span className="font-semibold text-slate-900">{createdSuccessApt.appointment.title}</span>
+              </div>
+              {createdSuccessApt.clientName && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Client :</span>
+                  <span className="font-semibold text-slate-900">{createdSuccessApt.clientName}</span>
+                </div>
+              )}
+              {createdSuccessApt.collabName && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Collaborateur :</span>
+                  <span className="font-semibold text-slate-900">{createdSuccessApt.collabName}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Actions WhatsApp directes pour mobile & web */}
+            <div className="space-y-2.5 pt-1">
+              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                Envoyer les messages WhatsApp depuis votre téléphone :
+              </p>
+
+              {createdSuccessApt.notifyClient && createdSuccessApt.clientPhone && (
+                <a
+                  href={buildWhatsAppUrl(
+                    createdSuccessApt.clientPhone,
+                    formatClientAppointmentMessage({
+                      title: createdSuccessApt.appointment.title,
+                      date: createdSuccessApt.appointment.date,
+                      startTime: createdSuccessApt.appointment.start_time,
+                      endTime: createdSuccessApt.appointment.end_time,
+                      contactName: createdSuccessApt.clientName,
+                      teamMemberName: createdSuccessApt.collabName,
+                      serviceName: createdSuccessApt.appointment.service_name,
+                      notes: createdSuccessApt.appointment.notes
+                    })
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-xs transition shadow-xs"
+                >
+                  📲 Envoyer confirmation WhatsApp au client
+                </a>
+              )}
+
+              {createdSuccessApt.notifyCollab && createdSuccessApt.collabPhone && (
+                <a
+                  href={buildWhatsAppUrl(
+                    createdSuccessApt.collabPhone,
+                    formatCollaboratorMissionMessage({
+                      title: createdSuccessApt.appointment.title,
+                      date: createdSuccessApt.appointment.date,
+                      startTime: createdSuccessApt.appointment.start_time,
+                      endTime: createdSuccessApt.appointment.end_time,
+                      contactName: createdSuccessApt.clientName,
+                      contactPhone: createdSuccessApt.clientPhone,
+                      teamMemberName: createdSuccessApt.collabName,
+                      serviceName: createdSuccessApt.appointment.service_name,
+                      notes: createdSuccessApt.appointment.notes
+                    })
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-xs transition shadow-xs"
+                >
+                  👷 Envoyer ordre de mission WhatsApp à {createdSuccessApt.collabName}
+                </a>
+              )}
+            </div>
+
+            {/* Calendriers */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-2">
+              <a
+                href={generateClientGoogleCalendarUrl({
+                  title: createdSuccessApt.appointment.title,
+                  date: createdSuccessApt.appointment.date,
+                  startTime: createdSuccessApt.appointment.start_time,
+                  endTime: createdSuccessApt.appointment.end_time,
+                  details: `Intervention avec ${createdSuccessApt.collabName || 'Équipe'}`
+                })}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[11px] rounded-lg transition"
+              >
+                📅 Google Agenda
+              </a>
+              <button
+                type="button"
+                onClick={() => downloadClientIcsFile({
+                  id: createdSuccessApt.appointment.id,
+                  title: createdSuccessApt.appointment.title,
+                  date: createdSuccessApt.appointment.date,
+                  startTime: createdSuccessApt.appointment.start_time,
+                  endTime: createdSuccessApt.appointment.end_time,
+                  details: `Intervention avec ${createdSuccessApt.collabName || 'Équipe'}`
+                })}
+                className="px-3 py-1.5 bg-slate-100 text-slate-800 hover:bg-slate-200 font-bold text-[11px] rounded-lg transition cursor-pointer"
+              >
+                🍏 Apple Calendrier
+              </button>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setCreatedSuccessApt(null)}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
