@@ -30,10 +30,7 @@ import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
 export const ClientsManager: React.FC = () => {
   const { openConversation, setSelectedContactId, setActiveTab, triggerRefresh, refreshAll } = useApp();
   const [contacts, setContacts] = useState<Contact[]>(() => getStoredContacts());
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(() => {
-    const list = getStoredContacts();
-    return list.length > 0 ? list[0] : null;
-  });
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -144,15 +141,25 @@ export const ClientsManager: React.FC = () => {
         if (Array.isArray(data) && data.length > 0) {
           setContacts(data);
           saveStoredContacts(data);
-          if (!selectedContact) {
-            setSelectedContact(data[0]);
-          }
         }
       })
       .catch(err => {
         console.warn('Backend contacts non connecté, utilisation du cache local:', err);
       });
   }, [triggerRefresh]);
+
+  // Fermer la fiche client ou les modales avec la touche Échap
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedContact(null);
+        setEditingContact(null);
+        setIsCreateModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // 2. Écouteur Cloud Firestore en temps réel pour synchroniser les clients entre collaborateurs
   useEffect(() => {
@@ -618,8 +625,14 @@ export const ClientsManager: React.FC = () => {
 
       {/* Tiroir Fiche Client 360° */}
       {selectedContact && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end">
-          <div className="bg-white w-full max-w-2xl h-full shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right-10 duration-200">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end cursor-pointer"
+          onClick={() => setSelectedContact(null)}
+        >
+          <div
+            className="bg-white w-full max-w-2xl h-full shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right-10 duration-200 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header tiroir */}
             <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -1004,8 +1017,14 @@ export const ClientsManager: React.FC = () => {
 
       {/* Modal Création Client */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setIsCreateModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-base text-slate-900">Ajouter un Nouveau Client</h3>
               <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
@@ -1122,8 +1141,14 @@ export const ClientsManager: React.FC = () => {
 
       {/* Modal Modification Directe Client depuis la tuile */}
       {editingContact && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setEditingContact(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl animate-in fade-in zoom-in-95 duration-150 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
