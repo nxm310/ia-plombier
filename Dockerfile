@@ -2,11 +2,12 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json tsconfig*.json ./
+COPY package*.json tsconfig*.json vite.config.ts tailwind.config.js postcss.config.js ./
 RUN npm ci
 
+COPY client ./client
 COPY server ./server
-RUN npm run build:server
+RUN npm run build
 
 FROM node:20-alpine AS runner
 
@@ -19,7 +20,7 @@ ENV PORT=3001
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY --from=builder /app/dist/server ./dist/server
+COPY --from=builder /app/dist ./dist
 
 # Point de montage persistant pour la session WhatsApp et la base SQLite
 VOLUME ["/data"]

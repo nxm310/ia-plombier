@@ -97,9 +97,15 @@ app.get('/api/health', (_req, res) => {
 // Montage des routes API
 app.use('/api', apiRouter);
 
-// Servir l'application React si le build existe
-const clientDistPath = path.resolve(__dirname, '../dist/client');
-if (fs.existsSync(clientDistPath)) {
+// Servir l'application React si le build existe (production cloud ou build local)
+const candidatePaths = [
+  path.resolve(__dirname, '../client'), // Production: dist/server/ -> dist/client
+  path.resolve(__dirname, '../dist/client'), // Dev tsx: server/ -> dist/client
+  path.resolve(process.cwd(), 'dist/client') // Racine du projet
+];
+const clientDistPath = candidatePaths.find(p => fs.existsSync(p));
+if (clientDistPath) {
+  console.log(`[Serveur] Fichiers React servis depuis: ${clientDistPath}`);
   app.use(express.static(clientDistPath));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDistPath, 'index.html'));
