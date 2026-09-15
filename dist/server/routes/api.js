@@ -1434,6 +1434,36 @@ apiRouter.post('/settings/:key', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// Test rapide de la clé Google Gemini API
+apiRouter.post('/settings/test-gemini', async (req, res) => {
+    try {
+        let key = req.body?.apiKey;
+        if (!key) {
+            const aiConfig = await getSetting('ai_config');
+            key = aiConfig?.geminiApiKey || process.env.GEMINI_API_KEY;
+        }
+        if (!key || !key.trim()) {
+            return res.status(400).json({ ok: false, message: 'Aucune clé API Gemini fournie ou configurée.' });
+        }
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const genAI = new GoogleGenerativeAI(key.trim());
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        const result = await model.generateContent('Réponds uniquement: OK');
+        const reply = result.response.text();
+        res.json({
+            ok: true,
+            message: 'API Gemini 2.5 Flash connectée avec succès !',
+            model: 'gemini-2.5-flash',
+            response: reply.trim()
+        });
+    }
+    catch (err) {
+        res.status(400).json({
+            ok: false,
+            message: err.message || 'Erreur lors du test de la clé Gemini'
+        });
+    }
+});
 // Contrôles WhatsApp
 apiRouter.get('/whatsapp/status', (_req, res) => {
     res.json(getWhatsAppState());

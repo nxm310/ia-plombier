@@ -108,7 +108,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
             </button>
           </div>
 
-          <div>{getStatusBadge()}</div>
+          <div className="flex flex-col gap-1.5">
+            {getStatusBadge()}
+            {localStorage.getItem('pme_gemini_verified') === 'true' ? (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                🟢 API Gemini OK
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-50 text-slate-500 border border-slate-200">
+                <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                ⚪ API Gemini en attente
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Navigation Items */}

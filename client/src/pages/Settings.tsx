@@ -28,6 +28,7 @@ import { useApp } from '../context/AppContext';
 import { CompanySettings, AiSettings, Service, TeamMember, IndustryPresetSummary } from '../types';
 import { INDUSTRY_PRESETS, IndustryPreset, generateCustomTradeConfig } from '../data/industryPresets';
 import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
+import { checkGeminiApiKey, GeminiCheckResult } from '../services/geminiCheck';
 
 const DEFAULT_PRESET_SUMMARIES: IndustryPresetSummary[] = Object.values(INDUSTRY_PRESETS).map(p => ({
   id: p.id,
@@ -45,6 +46,34 @@ const DEFAULT_PRESET_SUMMARIES: IndustryPresetSummary[] = Object.values(INDUSTRY
 export const Settings: React.FC = () => {
   const { refreshAll } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'company' | 'services' | 'team' | 'ai'>('company');
+
+  // État du check rapide API Gemini (Voyant Vert / Rouge)
+  const [geminiStatus, setGeminiStatus] = useState<GeminiCheckResult | null>(() => {
+    const cached = localStorage.getItem('pme_gemini_check_result');
+    if (cached) {
+      try { return JSON.parse(cached); } catch (e) {}
+    }
+    return null;
+  });
+  const [isCheckingGemini, setIsCheckingGemini] = useState(false);
+
+  const runGeminiCheck = async (keyOverride?: string) => {
+    setIsCheckingGemini(true);
+    try {
+      const key = keyOverride !== undefined ? keyOverride : (ai.geminiApiKey || '');
+      const res = await checkGeminiApiKey(key);
+      setGeminiStatus(res);
+      localStorage.setItem('pme_gemini_check_result', JSON.stringify(res));
+      if (res.ok) {
+        localStorage.setItem('pme_gemini_verified', 'true');
+      } else {
+        localStorage.removeItem('pme_gemini_verified');
+      }
+      return res;
+    } finally {
+      setIsCheckingGemini(false);
+    }
+  };
 
   // Company Settings
   const [company, setCompany] = useState<CompanySettings>({
@@ -67,6 +96,7 @@ export const Settings: React.FC = () => {
     autoReplyHours: 'always',
     temperature: 0.7
   });
+
 
   // Services / Interventions
   const [services, setServices] = useState<Service[]>([]);
@@ -690,7 +720,13 @@ Ton rôle :
           }`}
         >
           <Bot className="w-4 h-4" />
-          🤖 Configuration IA & Clés
+          <span>🤖 Configuration IA & Clés</span>
+          {geminiStatus?.ok && (
+            <span className="flex h-2 w-2 relative" title="API Gemini vérifiée et opérationnelle">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+          )}
         </button>
       </div>
 
@@ -1184,15 +1220,70 @@ Ton rôle :
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block font-medium text-slate-700 mb-1">Clé Google Gemini API</label>
-                <input
-                  type="password"
-                  placeholder="AIzaSy..."
-                  value={ai.geminiApiKey || ''}
-                  onChange={e => setAi({ ...ai, geminiApiKey: e.target.value })}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono text-[11px] focus:outline-none"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-medium text-slate-700">Clé Google Gemini API</label>
+                  {geminiStatus?.ok && (
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Voyant Vert (OK)
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    placeholder="AIzaSy..."
+                    value={ai.geminiApiKey || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setAi({ ...ai, geminiApiKey: val });
+                      if (val.length > 25) {
+                        runGeminiCheck(val);
+                      }
+                    }}
+                    className="flex-1 px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono text-[11px] focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => runGeminiCheck()}
+                    disabled={isCheckingGemini}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
+                    title="Tester la connexion à l'API Gemini"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 text-amber-400 ${isCheckingGemini ? 'animate-spin' : ''}`} />
+                    {isCheckingGemini ? 'Test...' : 'Vérifier'}
+                  </button>
+                </div>
+
+                {/* Voyant Vert / Rouge avec détail du statut */}
+                {geminiStatus ? (
+                  geminiStatus.ok ? (
+                    <div className="mt-2 flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-xs shadow-xs animate-in fade-in">
+                      <span className="relative flex h-3 w-3 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-bold leading-tight">🟢 Voyant Vert : API Gemini Opérationnelle</p>
+                        <p className="text-[11px] text-emerald-700 truncate">{geminiStatus.message}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs animate-in fade-in">
+                      <span className="inline-flex rounded-full h-3 w-3 bg-rose-500 shrink-0"></span>
+                      <div className="min-w-0">
+                        <p className="font-bold leading-tight">🔴 Voyant Rouge : Erreur Clé Gemini</p>
+                        <p className="text-[11px] text-rose-700 truncate">{geminiStatus.message}</p>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <p className="text-[11px] text-slate-400 mt-1.5">
+                    Entrez votre clé Google AI Studio et cliquez sur « Vérifier » pour allumer le voyant vert.
+                  </p>
+                )}
               </div>
+
 
               <div>
                 <label className="block font-medium text-slate-700 mb-1">Clé OpenAI API (Optionnelle)</label>
