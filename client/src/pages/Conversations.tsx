@@ -25,9 +25,113 @@ import {
   Mic,
   Volume2
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, getApiBaseUrl } from '../context/AppContext';
 import { Contact, Message, Memory, Appointment } from '../types';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
+
+function renderFormattedWhatsAppText(text?: string | null) {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return lines.map((line, lIdx) => {
+    const parts = line.split(/(\*[^*]+\*|_[^_]+_)/g);
+    return (
+      <span key={lIdx} className="block min-h-[1.15em]">
+        {parts.map((part, pIdx) => {
+          if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
+            return <strong key={pIdx} className="font-bold">{part.slice(1, -1)}</strong>;
+          }
+          if (part.startsWith('_') && part.endsWith('_') && part.length >= 2) {
+            return <em key={pIdx} className="italic opacity-90">{part.slice(1, -1)}</em>;
+          }
+          return <span key={pIdx}>{part}</span>;
+        })}
+      </span>
+    );
+  });
+}
+
+interface ParsedAppointmentMessage {
+  isAppointment: boolean;
+  introText: string;
+  googleUrl: string | null;
+  appleUrl: string | null;
+  missionUrl: string | null;
+  appointmentId: string | null;
+  footerText: string;
+}
+
+function parseAppointmentMessage(content?: string | null): ParsedAppointmentMessage | null {
+  if (!content) return null;
+
+  const isConfirmation =
+    content.includes('Confirmation de votre rendez-vous') ||
+    content.includes('NOUVEL ORDRE DE MISSION') ||
+    (content.includes('Prestation :') && (content.includes('Google Agenda') || content.includes('/api/appointments/')));
+
+  if (!isConfirmation) return null;
+
+  // Extract appointment ID
+  const idMatch = content.match(/\/api\/appointments\/(\d+)/i);
+  const appointmentId = idMatch ? idMatch[1] : null;
+
+  // Extract Google URL
+  const googleMatch =
+    content.match(/(https?:\/\/[^\s\n]+(?:\/api\/appointments\/\d+\/google|[^\s\n]*calendar\.google\.com[^\s\n]*))/i) ||
+    content.match(/Google Agenda[^\n]*\n?(?:👉\s*)?(https?:\/\/[^\s\n]+)/i);
+  const googleUrl = googleMatch ? (googleMatch[1] || googleMatch[0]) : null;
+
+  // Extract Apple URL
+  const appleMatch =
+    content.match(/(https?:\/\/[^\s\n]+\/api\/appointments\/\d+\/apple)/i) ||
+    content.match(/Apple Calendrier[^\n]*\n?(?:👉\s*)?(https?:\/\/[^\s\n]+)/i);
+  const appleUrl = appleMatch ? (appleMatch[1] || appleMatch[0]) : null;
+
+  // Extract Collaborator Mission URL if present
+  const missionMatch =
+    content.match(/(https?:\/\/[^\s\n]+\/api\/appointments\/\d+\/mission)/i) ||
+    content.match(/Valider la mission[^\n]*\n?(?:👉\s*)?(https?:\/\/[^\s\n]+)/i);
+  const missionUrl = missionMatch ? (missionMatch[1] || missionMatch[0]) : null;
+
+  // Extract intro text (everything before the calendar / mission button section)
+  let introText = content;
+  const splitPattern = /(?:📲\s*\*?Boutons d'ajout rapide|📲\s*\*?Ajouter à votre agenda|⚡\s*\*?Valider la mission|📅\s*\*?Google Agenda)/i;
+  const matchIndex = content.search(splitPattern);
+
+  let footerText = '';
+  if (matchIndex !== -1) {
+    introText = content.slice(0, matchIndex).trim();
+
+    // Look for closing footer like "Restant à votre entière disposition..." or company signature
+    const footerMatch = content.match(/(Restant à votre entière disposition[\s\S]*|_?[A-Z0-9\sÀ-ÿ._-]{3,}Entreprise[^\n]*_?|_Mon Entreprise[^\n]*_?)/i);
+    if (footerMatch && footerMatch.index !== undefined && footerMatch.index > matchIndex) {
+      footerText = footerMatch[0].trim();
+    }
+  }
+
+  // Remove any unwanted remnants such as "Ouvrir page client" and raw arrows/links
+  introText = introText
+    .replace(/🔗\s*\*?Ouvrir page client[^\n]*\n?(?:👉\s*)?[^\n]*/gi, '')
+    .replace(/👉\s*https?:\/\/[^\s\n]+/g, '')
+    .trim();
+
+  // If footer contains "Ouvrir page client" or links, clean it too
+  if (footerText) {
+    footerText = footerText
+      .replace(/🔗\s*\*?Ouvrir page client[^\n]*\n?(?:👉\s*)?[^\n]*/gi, '')
+      .replace(/👉\s*https?:\/\/[^\s\n]+/g, '')
+      .trim();
+  }
+
+  return {
+    isAppointment: true,
+    introText,
+    googleUrl,
+    appleUrl,
+    missionUrl,
+    appointmentId,
+    footerText
+  };
+}
 
 function formatBytes(bytes?: number | null): string {
   if (!bytes || bytes <= 0) return '';
@@ -599,11 +703,84 @@ export const Conversations: React.FC = () => {
                           </div>
                         )}
 
-                        {displayContent && (!m.transcription || displayContent !== m.transcription) ? (
-                          <p className="whitespace-pre-line">{displayContent}</p>
-                        ) : !hasAttachment && !isAudio && !m.transcription ? (
-                          <p className="whitespace-pre-line">{m.content}</p>
-                        ) : null}
+                        {(() => {
+                          const parsedApt = parseAppointmentMessage(displayContent || m.content);
+                          const apiBase = getApiBaseUrl();
+
+                          if (parsedApt) {
+                            return (
+                              <div className="space-y-2.5">
+                                <div>{renderFormattedWhatsAppText(parsedApt.introText)}</div>
+
+                                {/* Boutons d'ajout rapide cliquables style Agenda */}
+                                <div className="p-3 bg-white text-slate-800 rounded-xl shadow-xs border border-slate-200/90 space-y-2">
+                                  <p className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
+                                    📲 Boutons d'ajout rapide (cliquables) :
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {parsedApt.missionUrl && (
+                                      <a
+                                        href={
+                                          apiBase && parsedApt.appointmentId
+                                            ? `${apiBase}/api/appointments/${parsedApt.appointmentId}/mission`
+                                            : parsedApt.missionUrl
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1 no-underline"
+                                      >
+                                        ⚡ Valider la mission
+                                      </a>
+                                    )}
+                                    {(parsedApt.googleUrl || parsedApt.appointmentId) && (
+                                      <a
+                                        href={
+                                          apiBase && parsedApt.appointmentId
+                                            ? `${apiBase}/api/appointments/${parsedApt.appointmentId}/google`
+                                            : parsedApt.googleUrl || `/api/appointments/${parsedApt.appointmentId}/google`
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1 no-underline"
+                                      >
+                                        📅 Google Agenda
+                                      </a>
+                                    )}
+                                    {(parsedApt.appleUrl || parsedApt.appointmentId) && (
+                                      <a
+                                        href={
+                                          apiBase && parsedApt.appointmentId
+                                            ? `${apiBase}/api/appointments/${parsedApt.appointmentId}/apple`
+                                            : parsedApt.appleUrl || `/api/appointments/${parsedApt.appointmentId}/apple`
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        download={parsedApt.appointmentId ? `intervention-${parsedApt.appointmentId}.ics` : 'intervention.ics'}
+                                        className="px-2.5 py-1.5 bg-black hover:bg-neutral-800 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer no-underline"
+                                      >
+                                        🍏 Apple Calendrier (.ics)
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {parsedApt.footerText && (
+                                  <div className="text-[11px] opacity-90 pt-0.5">
+                                    {renderFormattedWhatsAppText(parsedApt.footerText)}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          if (displayContent && (!m.transcription || displayContent !== m.transcription)) {
+                            return <div>{renderFormattedWhatsAppText(displayContent)}</div>;
+                          }
+                          if (!hasAttachment && !isAudio && !m.transcription) {
+                            return <div>{renderFormattedWhatsAppText(m.content)}</div>;
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                   );

@@ -88,9 +88,9 @@ export const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto overflow-y-auto h-full">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8 max-w-7xl mx-auto overflow-y-auto h-full">
       {/* Top Banner */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 p-6 rounded-2xl text-white shadow-lg shadow-emerald-900/10">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 p-4 sm:p-6 rounded-2xl text-white shadow-lg shadow-emerald-900/10">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-semibold uppercase tracking-wider mb-2">
             <Sparkles className="w-3.5 h-3.5" />

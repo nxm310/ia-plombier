@@ -78,9 +78,11 @@ export async function sendAppointmentConfirmationNotification(appointmentId, hos
         ? `Intervention : ${appointment.service_name}`
         : appointment.title || 'Rendez-vous intervention';
     const collaboratorName = appointment.team_member_name || 'Notre équipe technique';
-    // Liens pour agenda personnel et page client (même présentation que dans l'agenda)
-    const baseUrl = hostUrl || 'http://localhost:3001';
-    const calendarPageUrl = `${baseUrl}/api/appointments/${appointment.id}/calendar`;
+    // Liens pour agenda personnel (Google & Apple)
+    const defaultPublicBackend = 'https://camping-turbo-aye-utilization.trycloudflare.com';
+    const baseUrl = (hostUrl && !hostUrl.includes('localhost') && !hostUrl.includes('127.0.0.1'))
+        ? hostUrl
+        : (process.env.PUBLIC_URL || defaultPublicBackend);
     const googlePageUrl = `${baseUrl}/api/appointments/${appointment.id}/google`;
     const applePageUrl = `${baseUrl}/api/appointments/${appointment.id}/apple`;
     const greeting = contact.name && contact.name.trim()
@@ -96,17 +98,12 @@ ${greeting}, votre intervention a bien été confirmée :
 👤 *Intervenant :* ${collaboratorName}
 🗓️ *Date :* ${formattedDate}
 ⏰ *Horaire :* ${horaireText}
-${appointment.notes ? `📝 *Précisions :* ${appointment.notes}\n` : ''}${appointment.document_url ? `📄 *Document joint :* ${appointment.document_name || 'Document associé'} (consultable sur le lien ci-dessous)\n` : ''}
+${appointment.notes ? `📝 *Précisions :* ${appointment.notes}\n` : ''}${appointment.document_url ? `📄 *Document joint :* ${appointment.document_name || 'Document associé'}\n` : ''}
 📲 *Boutons d'ajout rapide (cliquables) :*
-
 📅 *Google Agenda :*
 👉 ${googlePageUrl}
-
 🍏 *Apple Calendrier :*
 👉 ${applePageUrl}
-
-🔗 *Ouvrir page client :*
-👉 ${calendarPageUrl}
 
 Restant à votre entière disposition,
 _${companyName}_`;
@@ -157,7 +154,10 @@ export async function sendCollaboratorAppointmentNotification(appointmentId, hos
     const isFullDay = (appointment.start_time === '08:00' && appointment.end_time === '18:00');
     const horaireText = isFullDay ? 'Journée entière (08:00 - 18:00)' : `${appointment.start_time} - ${appointment.end_time}`;
     const prestation = appointment.service_name || appointment.title || 'Intervention';
-    const baseUrl = hostUrl || 'http://localhost:3001';
+    const defaultPublicBackend = 'https://camping-turbo-aye-utilization.trycloudflare.com';
+    const baseUrl = (hostUrl && !hostUrl.includes('localhost') && !hostUrl.includes('127.0.0.1'))
+        ? hostUrl
+        : (process.env.PUBLIC_URL || defaultPublicBackend);
     const missionUrl = `${baseUrl}/api/appointments/${appointment.id}/mission`;
     const googlePageUrl = `${baseUrl}/api/appointments/${appointment.id}/google`;
     const applePageUrl = `${baseUrl}/api/appointments/${appointment.id}/apple`;

@@ -84,7 +84,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-100/60 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="flex h-screen h-[100dvh] min-h-[100dvh] bg-slate-100/60 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Barre latérale (Desktop fixe & Drawer sur mobile) */}
       <Sidebar
         isOpen={isMobileMenuOpen}
@@ -95,11 +95,11 @@ export const App: React.FC = () => {
       {/* Contenu principal */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Header Mobile (visible uniquement sur mobile et tablette < md) */}
-        <header className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between z-30 shrink-0 shadow-xs">
-          <div className="flex items-center gap-2.5">
+        <header className="md:hidden bg-white border-b border-slate-200 px-3 sm:px-4 py-2.5 flex items-center justify-between z-30 shrink-0 shadow-xs pt-[max(0.625rem,env(safe-area-inset-top,0px))]">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
+              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
               title="Ouvrir le menu"
             >
               <Menu className="w-5 h-5" />
@@ -108,11 +108,11 @@ export const App: React.FC = () => {
               <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
                 <Bot className="w-4 h-4" />
               </div>
-              <span className="font-bold text-sm text-slate-900">Assistant PME</span>
+              <span className="font-bold text-sm text-slate-900 truncate">Assistant PME</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setIsPatchNotesOpen(true)}
               className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold rounded-lg flex items-center gap-1 shadow-2xs cursor-pointer transition"
@@ -136,64 +136,70 @@ export const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Zone de contenu principale (avec marge basse sur mobile pour la bottom-bar) */}
-        <div className="flex-1 min-w-0 overflow-hidden pb-16 md:pb-0">
+        {/* Zone de contenu principale (avec marge basse adaptée sur mobile pour la bottom-bar) */}
+        <div className={`flex-1 min-w-0 overflow-hidden ${
+          activeTab === 'conversations' && conversationMobileView === 'chat'
+            ? 'pb-0'
+            : 'pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] md:pb-0'
+        }`}>
           {renderContent()}
         </div>
 
-        {/* Bottom Navigation Bar (Raccourcis tactiles sur mobile < md) */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 px-2 py-1.5 flex items-center justify-around z-30 shadow-lg">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition ${
-              activeTab === 'dashboard' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            <span className="text-[10px]">Aperçu</span>
-          </button>
+        {/* Bottom Navigation Bar (Raccourcis tactiles sur mobile < md, masqué en plein écran chat) */}
+        {!(activeTab === 'conversations' && conversationMobileView === 'chat') && (
+          <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around z-30 shadow-lg">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition min-w-[50px] min-h-[44px] justify-center ${
+                activeTab === 'dashboard' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+              <span className="text-[10px]">Aperçu</span>
+            </button>
 
-          <button
-            onClick={() => {
-              setConversationMobileView('list');
-              setActiveTab('conversations');
-            }}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition ${
-              activeTab === 'conversations' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <MessageSquare className="w-5 h-5" />
-            <span className="text-[10px]">Chat</span>
-          </button>
+            <button
+              onClick={() => {
+                setConversationMobileView('list');
+                setActiveTab('conversations');
+              }}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition min-w-[50px] min-h-[44px] justify-center ${
+                activeTab === 'conversations' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <MessageSquare className="w-5 h-5" />
+              <span className="text-[10px]">Chat</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('appointments')}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition ${
-              activeTab === 'appointments' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <Calendar className="w-5 h-5" />
-            <span className="text-[10px]">Agenda</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('appointments')}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition min-w-[50px] min-h-[44px] justify-center ${
+                activeTab === 'appointments' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="text-[10px]">Agenda</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('clients')}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition ${
-              activeTab === 'clients' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <UserCheck className="w-5 h-5" />
-            <span className="text-[10px]">Clients</span>
-          </button>
+            <button
+              onClick={() => setActiveTab('clients')}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition min-w-[50px] min-h-[44px] justify-center ${
+                activeTab === 'clients' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <UserCheck className="w-5 h-5" />
+              <span className="text-[10px]">Clients</span>
+            </button>
 
-          <button
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 transition"
-          >
-            <Menu className="w-5 h-5" />
-            <span className="text-[10px]">Menu</span>
-          </button>
-        </nav>
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 transition min-w-[50px] min-h-[44px] justify-center"
+            >
+              <Menu className="w-5 h-5" />
+              <span className="text-[10px]">Menu</span>
+            </button>
+          </nav>
+        )}
 
         {/* Toast Notification temps réel pour les messages WhatsApp entrants */}
         {toast && (

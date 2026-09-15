@@ -98,7 +98,7 @@ export const Contacts: React.FC = () => {
   );
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6 overflow-y-auto h-full">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-6 overflow-y-auto h-full">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Mémoire & Fiches Clients (CRM)</h2>

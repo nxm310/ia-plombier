@@ -23,15 +23,60 @@ export interface PatchVersion {
   }[];
 }
 
-export const CURRENT_PATCH_VERSION = '3.1.0';
+export const CURRENT_PATCH_VERSION = '3.2.0';
 
 export const PATCH_HISTORY: PatchVersion[] = [
+  {
+    version: '3.2.0',
+    codename: 'Boutons Agenda Épurés & Suppression Page Client',
+    date: '16 Septembre 2026',
+    highlight: 'Boutons d\'ajout d\'agenda Google & Apple stylisés et cliquables dans les bulles de discussion comme dans l\'agenda, suppression définitive de la section « Ouvrir page client » et allégement des messages',
+    isLatest: true,
+    features: [
+      {
+        icon: '📲',
+        title: 'Boutons Cliquables Google & Apple dans le Chat',
+        desc: 'Les messages bleus de confirmation de rendez-vous affichent désormais des boutons visuels cliquables (« 📅 Google Agenda » et « 🍏 Apple Calendrier ») identiques à la fenêtre de l\'agenda, masquant les URL techniques brutes.',
+        badge: 'Expérience Client'
+      },
+      {
+        icon: '🧹',
+        title: 'Suppression Définitive de la Section « Ouvrir page client »',
+        desc: 'Retrait total de la mention et du lien « Ouvrir page client » dans les messages de notification WhatsApp ainsi que dans l\'historique des conversations.',
+        badge: 'Allégement'
+      },
+      {
+        icon: '⚡',
+        title: 'Ajout Instantané 1-Clic à l\'Agenda',
+        desc: 'En un clic sur mobile ou desktop, le client ou l\'artisan ouvre Google Agenda ou télécharge directement le fichier .ics Apple Calendrier sans encombrement visuel.',
+        badge: 'Calendrier'
+      }
+    ],
+    improvements: [
+      {
+        icon: '✨',
+        title: 'Mise en page épurée des confirmations d\'intervention',
+        desc: 'Le corps du message met en valeur les informations clés (Prestation, Intervenant, Date, Heure) dans un format aéré et professionnel.'
+      },
+      {
+        icon: '🌐',
+        title: 'Compatibilité Mobile & Multi-Appareils',
+        desc: 'Fonctionnement des boutons garanti en local, sur mobile et via la passerelle distante sécurisée.'
+      }
+    ],
+    fixes: [
+      {
+        title: 'Nettoyage des messages volumineux',
+        desc: 'Suppression des flèches et URLs brutes redondantes au profit d\'une carte d\'action moderne et réactive.'
+      }
+    ]
+  },
   {
     version: '3.1.0',
     codename: 'Tuiles Équipe Respirantes, Voyant Gemini & Liaison WhatsApp Directe',
     date: '15 Septembre 2026',
     highlight: 'Affichage complet du prénom et nom sans coupure, sélecteur de statut dédié, voyant vert API Gemini en direct, fermeture fluide des fiches clients et liaison WhatsApp sécurisée',
-    isLatest: true,
+    isLatest: false,
     features: [
       {
         icon: '👥',

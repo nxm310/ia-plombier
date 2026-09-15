@@ -611,7 +611,7 @@ Ton rôle :
     : services.filter(s => (s.category || 'Général') === serviceFilterCategory);
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl mx-auto space-y-6 overflow-y-auto h-full pb-20">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-4 sm:space-y-6 overflow-y-auto h-full pb-20">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

@@ -21,7 +21,7 @@ import {
   Wrench,
   AlertTriangle
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, getApiBaseUrl } from '../context/AppContext';
 import { Appointment, TeamMember, Contact, Service } from '../types';
 import {
   getTeamId,
@@ -99,7 +99,12 @@ export const Appointments: React.FC = () => {
 
   // Navigation Date
   const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return 'list';
+    }
+    return 'grid';
+  });
   const [selectedCollaboratorIds, setSelectedCollaboratorIds] = useState<number[]>([]);
 
   // Si on arrive depuis la fiche d'un client avec "Prendre un RDV"
@@ -621,7 +626,11 @@ export const Appointments: React.FC = () => {
     let sentViaServer = false;
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/notify-client`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host_url: getApiBaseUrl() || window.location.origin
+        })
       });
       if (res.ok) {
         sentViaServer = true;
@@ -667,7 +676,11 @@ export const Appointments: React.FC = () => {
     let sentViaServer = false;
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/notify-collaborator`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host_url: getApiBaseUrl() || window.location.origin
+        })
       });
       if (res.ok) {
         sentViaServer = true;
@@ -841,13 +854,13 @@ export const Appointments: React.FC = () => {
   });
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 overflow-y-auto h-full">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-5 overflow-y-auto h-full">
       {/* Top Header & Navigation */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Agenda Visuel Multi-Collaborateurs</h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Agenda Visuel Multi-Collaborateurs</h2>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold shrink-0">
               {dayAppointments.length} RDV aujourd'hui
             </span>
           </div>
@@ -856,26 +869,26 @@ export const Appointments: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
           {/* View Mode Switcher */}
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
-              Grille Équipe
+              <span>Grille</span>
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               <List className="w-3.5 h-3.5" />
-              Liste
+              <span>Liste</span>
             </button>
           </div>
 
@@ -892,55 +905,57 @@ export const Appointments: React.FC = () => {
               setFormContactId('');
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition"
+            className="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
-            Nouveau Rendez-vous
+            <span>Nouveau RDV</span>
           </button>
         </div>
       </div>
 
       {/* Date Navigator Bar & Collaborator Pills */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3 sm:space-y-4">
         {/* Navigation Jour */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => shiftDay(-1)}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition"
-              title="Jour précédent"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-start">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => shiftDay(-1)}
+                className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition cursor-pointer"
+                title="Jour précédent"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
 
-            <button
-              onClick={() => goToDate(new Date().toISOString().split('T')[0])}
-              className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-semibold text-slate-700 transition"
-            >
-              Aujourd'hui
-            </button>
+              <button
+                onClick={() => goToDate(new Date().toISOString().split('T')[0])}
+                className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-semibold text-slate-700 transition cursor-pointer"
+              >
+                Aujourd'hui
+              </button>
 
-            <button
-              onClick={() => shiftDay(1)}
-              className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition"
-              title="Jour suivant"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+              <button
+                onClick={() => shiftDay(1)}
+                className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition cursor-pointer"
+                title="Jour suivant"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
 
-            <span className="font-bold text-sm sm:text-base text-slate-900 capitalize ml-2">
+            <span className="font-bold text-xs sm:text-base text-slate-900 capitalize">
               {formattedDateTitle}
             </span>
           </div>
 
           {/* Date Picker direct */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 font-medium">Aller au :</span>
+          <div className="flex items-center gap-2 text-xs w-full sm:w-auto justify-end">
+            <span className="text-slate-400 font-medium whitespace-nowrap">Aller au :</span>
             <input
               type="date"
               value={currentDate}
               onChange={e => goToDate(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
             />
           </div>
         </div>
@@ -1005,8 +1020,19 @@ export const Appointments: React.FC = () => {
               Veuillez sélectionner au moins un collaborateur pour afficher la grille.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <div className="min-w-[750px]">
+            <>
+              <div className="md:hidden px-3.5 py-2 bg-slate-50 border-b border-slate-200 text-[11px] text-slate-500 flex items-center justify-between">
+                <span>👉 Glissez horizontalement pour voir toute l'équipe</span>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
+                >
+                  Vue Liste
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <div className="min-w-[750px]">
                 {/* En-tête des colonnes (Collaborateurs) */}
                 <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-20">
                   {/* Coin Heure */}
@@ -1234,9 +1260,10 @@ export const Appointments: React.FC = () => {
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
+    )}
 
       {/* Vue 2: LISTE CLASSIQUE */}
       {viewMode === 'list' && (
@@ -1315,8 +1342,8 @@ export const Appointments: React.FC = () => {
 
       {/* Modal Détail du Rendez-vous cliqué */}
       {selectedAppointment && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl text-xs">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 space-y-4 shadow-xl text-xs max-h-[90dvh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-base text-slate-900">Détails du Rendez-vous</h3>
               <button onClick={() => setSelectedAppointment(null)} className="text-slate-400 hover:text-slate-600">✕</button>
@@ -1597,8 +1624,8 @@ export const Appointments: React.FC = () => {
 
       {/* Modal Création de RDV */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 shadow-xl max-h-[90dvh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-base text-slate-900">Planifier un Nouveau Rendez-vous</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
@@ -2037,8 +2064,8 @@ export const Appointments: React.FC = () => {
 
       {/* Modal Confirmation & Envoi WhatsApp 1-Clic */}
       {createdSuccessApt && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in duration-150 space-y-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in duration-150 space-y-4 max-h-[90dvh] overflow-y-auto my-auto">
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
                 <CheckCircle2 className="w-7 h-7" />
