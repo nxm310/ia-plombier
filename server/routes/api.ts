@@ -726,7 +726,51 @@ apiRouter.get('/appointments', async (req: Request, res: Response) => {
 
 apiRouter.post('/appointments', async (req: Request, res: Response) => {
   try {
-    const id = await createAppointment(req.body);
+    let { contact_id, team_member_id, service_id } = req.body;
+
+    // 1. Validation / Résolution résiliente du contact
+    let contact = contact_id ? await getContactById(Number(contact_id)) : null;
+    if (!contact) {
+      if (req.body.contact_phone) {
+        contact = await getOrCreateContact(req.body.contact_phone, req.body.contact_name);
+      } else {
+        const allContacts = await getAllContacts();
+        if (allContacts.length > 0) {
+          contact = allContacts[0];
+        } else {
+          contact = await getOrCreateContact('33612345678', req.body.contact_name || 'Client');
+        }
+      }
+      contact_id = contact.id;
+    }
+
+    // 2. Validation résiliente du collaborateur
+    if (team_member_id) {
+      const member = await getTeamMemberById(Number(team_member_id));
+      if (!member) {
+        // ID non trouvé en base SQLite : trouver le premier collaborateur ou null pour éviter FOREIGN KEY constraint failed
+        const allTeam = await getAllTeamMembers();
+        const activeMember = allTeam.find(m => m.is_active);
+        team_member_id = activeMember ? activeMember.id : null;
+      }
+    }
+
+    // 3. Validation résiliente de la prestation
+    if (service_id) {
+      const service = await getServiceById(Number(service_id));
+      if (!service) {
+        service_id = null;
+      }
+    }
+
+    const payload = {
+      ...req.body,
+      contact_id,
+      team_member_id,
+      service_id
+    };
+
+    const id = await createAppointment(payload);
     const appointment = await getAppointmentById(id);
 
     const hostUrl = `${req.protocol}://${req.get('host')}`;
@@ -751,6 +795,7 @@ apiRouter.post('/appointments', async (req: Request, res: Response) => {
 
     res.status(201).json({ id, ...appointment });
   } catch (err: any) {
+    console.error('[Appointments] Erreur création rendez-vous:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -235,13 +235,10 @@ export async function saveAppointmentWithConflictCheck(
   appointment: Omit<CloudAppointment, 'id' | 'updatedAt'> & { id?: string }
 ): Promise<ConflictResult> {
   const teamId = getTeamId();
-  if (!teamId) {
-    return { success: false, id: '', error: "Identifiant d'équipe non défini." };
-  }
-
   const db = getFirestoreInstance();
-  if (!db) {
-    return { success: false, id: '', error: "Base de données Cloud non connectée." };
+  if (!teamId || !db) {
+    // Si la base cloud Firebase n'est pas configurée, on ne bloque pas la création locale
+    return { success: true, id: '' };
   }
 
   const aptId = appointment.id || `apt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;

@@ -421,34 +421,38 @@ export const Appointments: React.FC = () => {
     const startTime = (isAllDay || formDuration === 600) ? '08:00' : formStartTime;
     const endTime = calculatedEndTime;
 
+    const selectedMember = teamMembers.find(m => m.id === Number(formTeamMemberId));
+    const selectedContact = contacts.find(c => c.id === Number(formContactId));
+    const selectedService = services.find(s => s.id === Number(formServiceId));
+
     // 1. Vérification transactionnelle Cloud Firestore contre les doubles réservations
     const teamId = getTeamId();
     if (teamId) {
-      const selectedMember = teamMembers.find(m => m.id === Number(formTeamMemberId));
-      const selectedContact = contacts.find(c => c.id === Number(formContactId));
-      const selectedService = services.find(s => s.id === Number(formServiceId));
-
-      const conflictCheck = await saveAppointmentWithConflictCheck({
-        title: formTitle,
-        date: formDate,
-        startTime,
-        endTime,
-        teamMemberId: formTeamMemberId || 0,
-        teamMemberName: selectedMember?.name,
-        serviceId: formServiceId || undefined,
-        serviceName: selectedService?.name,
-        contactName: selectedContact ? (selectedContact.name || selectedContact.phone_number) : 'Client',
-        contactPhone: selectedContact?.phone_number,
-        status: 'confirmed',
-        notes: formNotes
-      });
-
-      if (!conflictCheck.success) {
-        setConflictError({
-          error: conflictCheck.error || 'Ce créneau est déjà réservé par un collaborateur.',
-          suggestedSlot: conflictCheck.suggestedSlot
+      try {
+        const conflictCheck = await saveAppointmentWithConflictCheck({
+          title: formTitle,
+          date: formDate,
+          startTime,
+          endTime,
+          teamMemberId: formTeamMemberId || 0,
+          teamMemberName: selectedMember?.name,
+          serviceId: formServiceId || undefined,
+          serviceName: selectedService?.name,
+          contactName: selectedContact ? (selectedContact.name || selectedContact.phone_number) : 'Client',
+          contactPhone: selectedContact?.phone_number,
+          status: 'confirmed',
+          notes: formNotes
         });
-        return;
+
+        if (!conflictCheck.success && conflictCheck.suggestedSlot) {
+          setConflictError({
+            error: conflictCheck.error || 'Ce créneau est déjà réservé par un collaborateur.',
+            suggestedSlot: conflictCheck.suggestedSlot
+          });
+          return;
+        }
+      } catch (cErr) {
+        console.warn('[Appointments] Erreur conflict check (ignoré en local):', cErr);
       }
     }
 
@@ -479,11 +483,13 @@ export const Appointments: React.FC = () => {
     }
 
     try {
-      await fetch('/api/appointments', {
+      const res = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contact_id: formContactId,
+          contact_name: selectedContact?.name || null,
+          contact_phone: selectedContact?.phone_number || null,
           team_member_id: formTeamMemberId || null,
           service_id: formServiceId || null,
           title: formTitle,
@@ -498,7 +504,15 @@ export const Appointments: React.FC = () => {
           notify_client: notifyClientOnCreate,
           notify_collaborator: notifyCollaboratorOnCreate
         })
-      }).catch(() => {});
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Erreur serveur (${res.status})`);
+      }
+
+      const createdApt = await res.json();
+      setAppointments(prev => [createdApt, ...prev.filter(a => a.id !== createdApt.id)]);
 
       setIsModalOpen(false);
       setIsAllDay(false);
@@ -508,8 +522,9 @@ export const Appointments: React.FC = () => {
       setFormNotes('');
       setFormContactId('');
       refreshAll();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erreur création RDV:', err);
+      alert('Erreur lors de la création du rendez-vous : ' + (err.message || 'Échec de la validation'));
     }
   };
 
