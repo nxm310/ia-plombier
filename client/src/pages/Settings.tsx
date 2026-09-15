@@ -22,7 +22,8 @@ import {
   ArrowRight,
   Search,
   Check,
-  LayoutGrid
+  LayoutGrid,
+  ChevronDown
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CompanySettings, AiSettings, Service, TeamMember, IndustryPresetSummary } from '../types';
@@ -1057,26 +1058,57 @@ Ton rôle :
             {teamMembers.map(member => (
               <div
                 key={member.id}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 flex flex-col justify-between hover:shadow-md transition"
+                className="group relative bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden"
               >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
+                {/* Barre colorée supérieure */}
+                <div
+                  className="h-1.5 w-full shrink-0"
+                  style={{ backgroundColor: member.color || '#0284c7' }}
+                />
+
+                <div className="p-5 space-y-4">
+                  {/* Header card: Avatar + Nom complet (Prénom et Nom 100% visibles) + Rôle */}
+                  <div className="flex items-start gap-3.5">
+                    <div className="relative shrink-0">
                       <div
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-white text-sm shadow-sm"
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white text-base shadow-sm ring-2 ring-white"
                         style={{ backgroundColor: member.color || '#0284c7' }}
                       >
-                        {member.name.charAt(0).toUpperCase()}
+                        {member.name.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() || member.name.charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-sm">{member.name}</h4>
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[10px] mt-0.5">
+                      {/* Pastille statut sur l'avatar */}
+                      <span
+                        className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center text-[9px] shadow-xs ${
+                          (member.status || (member.is_active ? 'active' : 'other')) === 'active'
+                            ? 'bg-emerald-500'
+                            : (member.status || (member.is_active ? 'active' : 'other')) === 'vacation'
+                            ? 'bg-amber-500'
+                            : (member.status || (member.is_active ? 'active' : 'other')) === 'sick'
+                            ? 'bg-rose-500'
+                            : 'bg-purple-500'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {/* Nom complet bien visible sans troncature */}
+                      <h4 className="font-bold text-base text-slate-900 leading-snug break-words tracking-tight">
+                        {member.name}
+                      </h4>
+                      <div className="mt-1">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/60">
                           {member.role}
                         </span>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-1.5">
+                  {/* Sélecteur de statut dédié - En pleine largeur, séparé du nom */}
+                  <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/70 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider pl-1">
+                      Statut :
+                    </span>
+                    <div className="relative inline-flex items-center">
                       <select
                         value={member.status || (member.is_active ? 'active' : 'other')}
                         onChange={async (e) => {
@@ -1089,7 +1121,7 @@ Ton rôle :
                           });
                           fetch('/api/team').then(r => r.json()).then(setTeamMembers);
                         }}
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border cursor-pointer appearance-none ${
+                        className={`text-xs font-bold pl-3 pr-7 py-1.5 rounded-lg border cursor-pointer appearance-none transition shadow-2xs focus:outline-none focus:ring-2 ${
                           (member.status || (member.is_active ? 'active' : 'other')) === 'active'
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                             : (member.status || (member.is_active ? 'active' : 'other')) === 'vacation'
@@ -1098,60 +1130,68 @@ Ton rôle :
                             ? 'bg-rose-50 text-rose-800 border-rose-300'
                             : 'bg-purple-50 text-purple-800 border-purple-300'
                         }`}
-                        title="Changer le statut"
+                        title="Changer le statut du collaborateur"
                       >
-                        <option value="active">🟢 Actif</option>
-                        <option value="vacation">🏖️ Vacances</option>
-                        <option value="sick">🤒 Malade</option>
-                        <option value="other">⚪ Autre</option>
+                        <option value="active" className="bg-white text-slate-800">🟢 Actif (En poste)</option>
+                        <option value="vacation" className="bg-white text-slate-800">🏖️ Vacances</option>
+                        <option value="sick" className="bg-white text-slate-800">🤒 Malade</option>
+                        <option value="other" className="bg-white text-slate-800">⚪ Autre</option>
                       </select>
-                      <button
-                        onClick={() => {
-                          setEditingMember(member);
-                          setIsTeamModalOpen(true);
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                        title="Modifier"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteMember(member.id, member.name)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <ChevronDown className="w-3.5 h-3.5 absolute right-2 pointer-events-none opacity-60 text-slate-700" />
                     </div>
                   </div>
 
                   {/* Coordonnées */}
-                  <div className="space-y-1 text-[11px] text-slate-500 pt-1">
-                    {member.phone && (
-                      <p className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <div className="space-y-2 text-xs text-slate-600 bg-white rounded-xl p-2.5 border border-slate-100">
+                    {member.phone ? (
+                      <a
+                        href={`tel:${member.phone}`}
+                        className="flex items-center gap-2 text-slate-700 hover:text-blue-600 font-medium transition group/link"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 group-hover/link:bg-blue-100 transition">
+                          <Phone className="w-3.5 h-3.5" />
+                        </div>
                         <span>{member.phone}</span>
-                      </p>
+                      </a>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-400 italic">
+                        <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 shrink-0">
+                          <Phone className="w-3.5 h-3.5" />
+                        </div>
+                        <span>Aucun téléphone</span>
+                      </div>
                     )}
-                    {member.email && (
-                      <p className="flex items-center gap-1.5">
-                        <Mail className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{member.email}</span>
-                      </p>
+                    {member.email ? (
+                      <a
+                        href={`mailto:${member.email}`}
+                        className="flex items-center gap-2 text-slate-700 hover:text-blue-600 font-medium transition group/link"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 group-hover/link:bg-blue-100 transition">
+                          <Mail className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate">{member.email}</span>
+                      </a>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-400 italic">
+                        <div className="w-6 h-6 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 shrink-0">
+                          <Mail className="w-3.5 h-3.5" />
+                        </div>
+                        <span>Aucun email</span>
+                      </div>
                     )}
                   </div>
 
                   {/* Spécialités */}
                   {member.specialties && member.specialties.length > 0 && (
-                    <div className="pt-2">
-                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                         Spécialités & Compétences :
                       </p>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {member.specialties.map((spec, i) => (
                           <span
                             key={i}
-                            className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-700 border border-slate-200 text-[10px] font-medium"
+                            className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium border border-slate-200/70"
                           >
                             {spec}
                           </span>
@@ -1161,11 +1201,31 @@ Ton rôle :
                   )}
                 </div>
 
-                <div className="pt-3 mt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Horaires : Lun-Ven (8h - 18h)</span>
-                  <span className="text-emerald-600 font-bold flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Actif
+                {/* Footer Actions */}
+                <div className="px-5 py-3 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-slate-400">
+                    ID #{member.id}
                   </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        setEditingMember(member);
+                        setIsTeamModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition border border-transparent hover:border-blue-100 cursor-pointer"
+                      title="Modifier"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Modifier</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMember(member.id, member.name)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
