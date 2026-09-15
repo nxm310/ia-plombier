@@ -1,17 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, getApiBaseUrl } from './context/AppContext';
 import './index.css';
 
-// Si un serveur Cloud personnalisé (ex: Railway / Render) est configuré, rediriger /api vers ce serveur
+// Si un serveur Cloud (ou tunnel) est actif, rediriger automatiquement les appels /api vers ce serveur
 if (typeof window !== 'undefined') {
   const originalFetch = window.fetch;
   window.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
     if (typeof input === 'string' && input.startsWith('/api/')) {
-      const customServer = localStorage.getItem('pme_custom_server_url');
-      if (customServer && customServer.trim()) {
-        const base = customServer.trim().replace(/\/+$/, '');
+      const base = getApiBaseUrl();
+      if (base) {
         return originalFetch(`${base}${input}`, init);
       }
     }

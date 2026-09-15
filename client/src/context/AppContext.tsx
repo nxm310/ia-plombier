@@ -20,27 +20,28 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+export const DEFAULT_CLOUD_BACKEND = 'https://camping-turbo-aye-utilization.trycloudflare.com';
+
 export function getApiBaseUrl(): string {
   if (typeof window === 'undefined') return '';
   const custom = localStorage.getItem('pme_custom_server_url');
   if (custom && custom.trim()) {
     return custom.trim().replace(/\/+$/, '');
   }
+  // Sur GitHub Pages ou domaine distant sans backend local, relier au Cloudflare Tunnel sécurisé
+  if (window.location.hostname.includes('github.io') || (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')) {
+    return DEFAULT_CLOUD_BACKEND;
+  }
   return '';
 }
 
 export function getWsBaseUrl(): string | null {
   if (typeof window === 'undefined') return null;
-  const custom = localStorage.getItem('pme_custom_server_url');
-  if (custom && custom.trim()) {
-    const clean = custom.trim().replace(/\/+$/, '');
-    const wsProto = clean.startsWith('https://') ? 'wss:' : 'ws:';
-    const host = clean.replace(/^https?:\/\//, '');
+  const baseUrl = getApiBaseUrl();
+  if (baseUrl) {
+    const wsProto = baseUrl.startsWith('https://') ? 'wss:' : 'ws:';
+    const host = baseUrl.replace(/^https?:\/\//, '');
     return `${wsProto}//${host}/ws`;
-  }
-  // Ne pas tenter de connexion WS sur GitHub Pages sans serveur externe configuré
-  if (window.location.hostname.includes('github.io')) {
-    return null;
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/ws`;
