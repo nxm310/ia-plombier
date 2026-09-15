@@ -23,15 +23,79 @@ export interface PatchVersion {
   }[];
 }
 
-export const CURRENT_PATCH_VERSION = '3.0.0';
+export const CURRENT_PATCH_VERSION = '3.1.0';
 
 export const PATCH_HISTORY: PatchVersion[] = [
+  {
+    version: '3.1.0',
+    codename: 'Tuiles Équipe Respirantes, Voyant Gemini & Liaison WhatsApp Directe',
+    date: '15 Septembre 2026',
+    highlight: 'Affichage complet du prénom et nom sans coupure, sélecteur de statut dédié, voyant vert API Gemini en direct, fermeture fluide des fiches clients et liaison WhatsApp sécurisée',
+    isLatest: true,
+    features: [
+      {
+        icon: '👥',
+        title: 'Tuiles Collaborateurs Respirantes & Noms Complets',
+        desc: 'Le prénom et le nom de famille des équipiers s\'affichent désormais en intégralité sans coupure ni troncature sur toutes les tuiles de l\'Équipe et des Paramètres.',
+        badge: 'Équipe & RH'
+      },
+      {
+        icon: '🏷️',
+        title: 'Sélecteur de Statut Dédié sur Chaque Tuile',
+        desc: 'Le menu de statut (Actif, Vacances, Malade, Autre) dispose de sa propre rangée dédiée sous le nom, éliminant tout chevauchement et facilitant le changement d\'état en 1 clic.',
+        badge: 'Ergonomie'
+      },
+      {
+        icon: '🟢',
+        title: 'Test & Voyant Vert de l\'API Google Gemini',
+        desc: 'Bouton « Vérifier » instantané dans les Réglages IA et voyant vert permanent dans la barre latérale confirmant que l\'intelligence artificielle est 100% opérationnelle.',
+        badge: 'IA & Diagnostic'
+      },
+      {
+        icon: '📇',
+        title: 'Fermeture Fluide de la Fiche Client & CRM',
+        desc: 'L\'accès à l\'onglet Clients ouvre directement la vue globale des tuiles. Les fiches clients se ferment en 1 clic sur la croix ou en cliquant à côté dans l\'application.',
+        badge: 'Navigation'
+      }
+    ],
+    improvements: [
+      {
+        icon: '🎨',
+        title: 'Bandeau Couleur & Pastille Lumineuse sur Avatar',
+        desc: 'Chaque carte équipier affiche sa couleur thématique en bandeau supérieur et une pastille d\'état sur l\'avatar (🟢 Actif, 🏖️ Congés, 🤒 Arrêt, ⚪ Autre).'
+      },
+      {
+        icon: '📲',
+        title: 'Passerelle WhatsApp HTTPS Sécurisée',
+        desc: 'Affichage direct du QR Code de synchronisation sur l\'application web depuis n\'importe quel appareil (ordinateur, iPhone) sans message bloquant.'
+      },
+      {
+        icon: '📅',
+        title: 'Agenda & Rendez-vous 100% Résilients',
+        desc: 'Validation instantanée des rendez-vous sans blocage réseau, avec envoi en 1 clic des confirmations clients et ordres de mission équipiers par WhatsApp.'
+      }
+    ],
+    fixes: [
+      {
+        title: 'Troncature des Noms de Famille Masqués',
+        desc: 'Suppression des contraintes CSS qui masquaient le nom de famille derrière le sélecteur de disponibilité.'
+      },
+      {
+        title: 'Erreur Serveur (405) lors de la Création de RDV',
+        desc: 'Prise en charge de la persistance locale continue avec synchronisation automatique pour sécuriser chaque rendez-vous saisi.'
+      },
+      {
+        title: 'Chargement en Boucle du QR Code WhatsApp',
+        desc: 'Rétablissement de la passerelle directe vers le moteur de session WhatsApp pour éliminer le sablier infini.'
+      }
+    ]
+  },
   {
     version: '3.0.0',
     codename: 'Copilote IA Gérant & Messages Vocaux WhatsApp',
     date: '14 Septembre 2026',
     highlight: 'Chat interne direct avec Clara pour piloter vos opérations, agendas et équipes, et compréhension automatique des messages vocaux clients',
-    isLatest: true,
+    isLatest: false,
     features: [
       {
         icon: '✨',
