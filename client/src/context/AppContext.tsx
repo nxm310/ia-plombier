@@ -52,20 +52,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const wsUrl = getWsBaseUrl();
 
-    // Récupération initiale de l'état WhatsApp
-    fetch('/api/whatsapp/status')
-      .then(res => {
-        if (!res.ok) throw new Error('Not OK');
-        return res.json();
-      })
-      .then(data => {
-        if (data && typeof data.status === 'string') {
-          setWhatsappState(data);
-        }
-      })
-      .catch(err => console.warn('Erreur fetch whatsapp status:', err));
+    const fetchStatus = () => {
+      fetch('/api/whatsapp/status')
+        .then(res => {
+          if (!res.ok) throw new Error('Status ' + res.status);
+          const ct = res.headers.get('content-type') || '';
+          if (!ct.includes('application/json')) throw new Error('Not JSON');
+          return res.json();
+        })
+        .then(data => {
+          if (data && typeof data.status === 'string') {
+            setWhatsappState(data);
+          }
+        })
+        .catch(err => {
+          // Si on est sur un serveur statique (ex: GitHub Pages), ignorer l'erreur silencieusement
+          console.debug('Status check WhatsApp:', err.message);
+        });
+    };
 
-    if (!wsUrl) return;
+    fetchStatus();
+    // Poll de sécurité toutes les 3 secondes si non connecté pour capturer le QR code immédiatement
+    const pollTimer = setInterval(fetchStatus, 3000);
+
+    if (!wsUrl) return () => clearInterval(pollTimer);
 
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
@@ -109,6 +119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     connectWs();
 
     return () => {
+      clearInterval(pollTimer);
       if (ws) ws.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };

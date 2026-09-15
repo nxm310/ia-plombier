@@ -10,7 +10,9 @@ import {
   Smartphone,
   Copy,
   Check,
-  Phone
+  Phone,
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { handlePhoneInputChange } from '../utils/phone';
@@ -32,14 +34,27 @@ export const WhatsAppConnect: React.FC = () => {
   const [testText, setTestText] = useState('Bonjour, ceci est un test de connexion WhatsApp !');
   const [testSuccess, setTestSuccess] = useState<string | null>(null);
 
+  const isRemoteHost = typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1' &&
+    !window.location.hostname.startsWith('192.168.') &&
+    !window.location.hostname.startsWith('10.');
+
   const handleReconnect = async () => {
     setIsReconnecting(true);
     setPairingCode(null);
     try {
-      await fetch('/api/whatsapp/reset', { method: 'POST' });
+      const res = await fetch('/api/whatsapp/reset', { method: 'POST' });
+      if (!res.ok) {
+        if (res.status === 404 || res.status === 405) {
+          throw new Error("Le serveur WhatsApp local n'est pas joignable depuis cette adresse web. Veuillez ouvrir l'application sur http://localhost:5173 sur votre Mac.");
+        }
+        throw new Error(`Erreur serveur (${res.status})`);
+      }
       refreshAll();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erreur reconnect:', err);
+      alert('Erreur régénération : ' + (err.message || 'Impossible de joindre le serveur'));
     } finally {
       setIsReconnecting(false);
     }
@@ -50,10 +65,12 @@ export const WhatsAppConnect: React.FC = () => {
     setIsDisconnecting(true);
     setPairingCode(null);
     try {
-      await fetch('/api/whatsapp/disconnect', { method: 'POST' });
+      const res = await fetch('/api/whatsapp/disconnect', { method: 'POST' });
+      if (!res.ok) throw new Error(`Erreur serveur (${res.status})`);
       refreshAll();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erreur disconnect:', err);
+      alert('Erreur: ' + (err.message || 'Impossible de joindre le serveur'));
     } finally {
       setIsDisconnecting(false);
     }
@@ -71,6 +88,20 @@ export const WhatsAppConnect: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber: phoneNumberInput.trim() })
       });
+
+      if (!res.ok) {
+        if (res.status === 404 || res.status === 405) {
+          throw new Error("Le serveur WhatsApp Baileys tourne sur votre Mac en local. Vous êtes actuellement sur une page statique (" + window.location.hostname + "). Ouvrez l'application sur http://localhost:5173 pour connecter WhatsApp.");
+        }
+        const text = await res.text().catch(() => '');
+        throw new Error(`Erreur serveur (${res.status}) : ${text.slice(0, 150)}`);
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error("Le serveur n'a pas retourné de réponse JSON valide. Ouvrez l'application locale sur http://localhost:5173");
+      }
+
       const data = await res.json();
       if (data.pairingCode) {
         setPairingCode(data.pairingCode);
@@ -78,7 +109,7 @@ export const WhatsAppConnect: React.FC = () => {
         alert(data.error || 'Impossible d\'obtenir le code de jumelage');
       }
     } catch (err: any) {
-      alert('Erreur: ' + err.message);
+      alert('Erreur: ' + (err.message || 'Une erreur inattendue est survenue'));
     } finally {
       setIsRequestingCode(false);
     }
@@ -105,6 +136,9 @@ export const WhatsAppConnect: React.FC = () => {
           content: testText
         })
       });
+      if (!res.ok) {
+        throw new Error(`Erreur serveur (${res.status}) : Impossible d'envoyer le message test`);
+      }
       const data = await res.json();
       if (data.success) {
         setTestSuccess(`Message envoyé avec succès (${data.via || 'WhatsApp'}) !`);
@@ -112,12 +146,46 @@ export const WhatsAppConnect: React.FC = () => {
         alert(data.error || 'Erreur lors de l\'envoi');
       }
     } catch (err: any) {
-      alert('Erreur: ' + err.message);
+      alert('Erreur: ' + (err.message || 'Échec de l\'envoi'));
     }
   };
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-6 overflow-y-auto h-full">
+      {/* Alerte si ouvert sur GitHub Pages ou hébergeur distant */}
+      {isRemoteHost && (
+        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl text-amber-900 text-xs space-y-2.5 shadow-sm">
+          <div className="flex items-center gap-2 font-bold text-sm text-amber-950">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            Connexion requise sur l'application locale
+          </div>
+          <p className="leading-relaxed">
+            Vous consultez actuellement l'application depuis <strong>{window.location.hostname}</strong>. 
+            Comme convenu en mode <strong>monoposte direct</strong>, le moteur WhatsApp (Baileys) s'exécute sur votre Mac. 
+            Les sites web statiques distants (GitHub Pages / Vercel) ne peuvent pas maintenir la connexion WhatsApp en direct.
+          </p>
+          <div className="pt-1 flex flex-wrap items-center gap-3">
+            <a
+              href="http://localhost:5173"
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-1.5 transition shadow-xs"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Ouvrir l'application locale (http://localhost:5173)
+            </a>
+            <a
+              href="http://192.168.50.174:5173"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3.5 py-2 bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 font-semibold rounded-xl flex items-center gap-1.5 transition"
+            >
+              📱 Accès Mobile Wi-Fi (192.168.50.174:5173)
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Connexion WhatsApp</h2>

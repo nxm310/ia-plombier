@@ -496,9 +496,9 @@ async function processMessageMedia(
  * Génère un code de jumelage à 8 caractères pour lier WhatsApp sans utiliser la caméra
  */
 export async function requestPairingCode(phoneNumber: string): Promise<string> {
-  const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-  if (!cleanPhone) {
-    throw new Error('Numéro de téléphone requis pour le code de jumelage');
+  const cleanPhone = normalizePhone(phoneNumber);
+  if (!cleanPhone || cleanPhone.length < 8) {
+    throw new Error('Numéro de téléphone invalide pour le code de jumelage (format attendu : ex. 06 12 34 56 78 ou +33 6 12 34 56 78)');
   }
 
   // Réinitialiser la session pour démarrer un appairage propre
