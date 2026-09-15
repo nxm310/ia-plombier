@@ -137,17 +137,12 @@ export const App: React.FC = () => {
         </header>
 
         {/* Zone de contenu principale (avec marge basse adaptée sur mobile pour la bottom-bar) */}
-        <div className={`flex-1 min-w-0 overflow-hidden ${
-          activeTab === 'conversations' && conversationMobileView === 'chat'
-            ? 'pb-0'
-            : 'pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] md:pb-0'
-        }`}>
+        <div className="flex-1 min-w-0 overflow-hidden pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] md:pb-0">
           {renderContent()}
         </div>
 
-        {/* Bottom Navigation Bar (Raccourcis tactiles sur mobile < md, masqué en plein écran chat) */}
-        {!(activeTab === 'conversations' && conversationMobileView === 'chat') && (
-          <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around z-30 shadow-lg">
+        {/* Bottom Navigation Bar (Toujours accessible sur mobile pour naviguer sans blocage) */}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around z-30 shadow-lg">
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition min-w-[50px] min-h-[44px] justify-center ${
@@ -199,7 +194,6 @@ export const App: React.FC = () => {
               <span className="text-[10px]">Menu</span>
             </button>
           </nav>
-        )}
 
         {/* Toast Notification temps réel pour les messages WhatsApp entrants */}
         {toast && (

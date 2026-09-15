@@ -23,15 +23,60 @@ export interface PatchVersion {
   }[];
 }
 
-export const CURRENT_PATCH_VERSION = '3.2.0';
+export const CURRENT_PATCH_VERSION = '3.2.1';
 
 export const PATCH_HISTORY: PatchVersion[] = [
+  {
+    version: '3.2.1',
+    codename: 'Rétablissement de l\'Onglet Conversations Live & Navigation Mobile Fluide',
+    date: '16 Septembre 2026',
+    highlight: 'Rétablissement complet de l\'onglet Conversations Live : barre de navigation permanente sur smartphone, sélection automatique sécurisée des contacts sans blocage et bouton de retour systématique',
+    isLatest: true,
+    features: [
+      {
+        icon: '💬',
+        title: 'Onglet Conversations Live Toujours Opérationnel',
+        desc: 'Sécurisation du chargement des discussions WhatsApp, auto-sélection instantanée du contact valide et protection absolue contre les écrans blancs ou blocages infinis.',
+        badge: 'Correctif Live'
+      },
+      {
+        icon: '🧭',
+        title: 'Barre de Navigation Mobile Permanente',
+        desc: 'La barre d\'onglets inférieure reste toujours visible et accessible sur smartphone pour basculer à tout instant entre le Chat, l\'Agenda, les Clients et l\'Aperçu.',
+        badge: 'Navigation'
+      },
+      {
+        icon: '↩️',
+        title: 'Bouton Retour Systématique vers la Liste des Conversations',
+        desc: 'Un bouton retour dédié permet de revenir en un instant à la liste de toutes les conversations WhatsApp depuis n\'importe quel fil de discussion sur mobile.',
+        badge: 'Ergonomie'
+      }
+    ],
+    improvements: [
+      {
+        icon: '🛡️',
+        title: 'Robustesse des requêtes API',
+        desc: 'Vérification stricte de la conformité des tableaux de messages et mémoires afin d\'éviter toute erreur d\'exécution.',
+      },
+      {
+        icon: '⚡',
+        title: 'Bascule fluide Liste / Chat',
+        desc: 'Transition sans friction entre l\'arborescence des clients et le panneau de réponse WhatsApp.',
+      }
+    ],
+    fixes: [
+      {
+        title: 'Déblocage de l\'affichage de discussion',
+        desc: 'Correction de la synchronisation de l\'ID de contact empêchant la vue de rester bloquée sur un chargement indéfini.',
+      }
+    ]
+  },
   {
     version: '3.2.0',
     codename: 'Boutons Agenda Épurés & Suppression Page Client',
     date: '16 Septembre 2026',
     highlight: 'Boutons d\'ajout d\'agenda Google & Apple stylisés et cliquables dans les bulles de discussion comme dans l\'agenda, suppression définitive de la section « Ouvrir page client » et allégement des messages',
-    isLatest: true,
+    isLatest: false,
     features: [
       {
         icon: '📲',

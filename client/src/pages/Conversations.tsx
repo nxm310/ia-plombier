@@ -30,24 +30,28 @@ import { Contact, Message, Memory, Appointment } from '../types';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
 
 function renderFormattedWhatsAppText(text?: string | null) {
-  if (!text) return null;
-  const lines = text.split('\n');
-  return lines.map((line, lIdx) => {
-    const parts = line.split(/(\*[^*]+\*|_[^_]+_)/g);
-    return (
-      <span key={lIdx} className="block min-h-[1.15em]">
-        {parts.map((part, pIdx) => {
-          if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
-            return <strong key={pIdx} className="font-bold">{part.slice(1, -1)}</strong>;
-          }
-          if (part.startsWith('_') && part.endsWith('_') && part.length >= 2) {
-            return <em key={pIdx} className="italic opacity-90">{part.slice(1, -1)}</em>;
-          }
-          return <span key={pIdx}>{part}</span>;
-        })}
-      </span>
-    );
-  });
+  if (!text || typeof text !== 'string') return null;
+  try {
+    const lines = text.split('\n');
+    return lines.map((line, lIdx) => {
+      const parts = line.split(/(\*[^*]+\*|_[^_]+_)/g);
+      return (
+        <span key={lIdx} className="block min-h-[1.15em]">
+          {parts.map((part, pIdx) => {
+            if (part && part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
+              return <strong key={pIdx} className="font-bold">{part.slice(1, -1)}</strong>;
+            }
+            if (part && part.startsWith('_') && part.endsWith('_') && part.length >= 2) {
+              return <em key={pIdx} className="italic opacity-90">{part.slice(1, -1)}</em>;
+            }
+            return <span key={pIdx}>{part}</span>;
+          })}
+        </span>
+      );
+    });
+  } catch (err) {
+    return <span className="whitespace-pre-line">{text}</span>;
+  }
 }
 
 interface ParsedAppointmentMessage {
@@ -61,7 +65,8 @@ interface ParsedAppointmentMessage {
 }
 
 function parseAppointmentMessage(content?: string | null): ParsedAppointmentMessage | null {
-  if (!content) return null;
+  if (!content || typeof content !== 'string') return null;
+  try {
 
   const isConfirmation =
     content.includes('Confirmation de votre rendez-vous') ||
@@ -122,15 +127,19 @@ function parseAppointmentMessage(content?: string | null): ParsedAppointmentMess
       .trim();
   }
 
-  return {
-    isAppointment: true,
-    introText,
-    googleUrl,
-    appleUrl,
-    missionUrl,
-    appointmentId,
-    footerText
-  };
+    return {
+      isAppointment: true,
+      introText,
+      googleUrl,
+      appleUrl,
+      missionUrl,
+      appointmentId,
+      footerText
+    };
+  } catch (err) {
+    console.error('Erreur parsing rendez-vous message:', err);
+    return null;
+  }
 }
 
 function formatBytes(bytes?: number | null): string {
@@ -308,7 +317,7 @@ export const Conversations: React.FC = () => {
         if (Array.isArray(data) && data.length > 0) {
           setContacts(data);
           saveStoredContacts(data);
-          if (!selectedContactId) {
+          if (!selectedContactId || !data.some(c => c.id === selectedContactId)) {
             setSelectedContactId(data[0].id);
           }
         }
@@ -316,11 +325,24 @@ export const Conversations: React.FC = () => {
       .catch(err => {
         console.warn('Backend contacts non joignable, utilisation des contacts locaux:', err);
         const stored = getStoredContacts();
-        if (!selectedContactId && stored.length > 0) {
-          setSelectedContactId(stored[0].id);
+        if (Array.isArray(stored) && stored.length > 0) {
+          setContacts(stored);
+          if (!selectedContactId || !stored.some(c => c.id === selectedContactId)) {
+            setSelectedContactId(stored[0].id);
+          }
         }
       });
   }, [triggerRefresh]);
+
+  // Si le contact sélectionné n'est pas dans la liste actuelle, basculer sur le premier
+  useEffect(() => {
+    if (contacts.length > 0) {
+      const exists = contacts.some(c => c.id === selectedContactId);
+      if (!exists) {
+        setSelectedContactId(contacts[0].id);
+      }
+    }
+  }, [contacts, selectedContactId]);
 
   // Charger les détails du contact sélectionné
   useEffect(() => {
@@ -328,18 +350,27 @@ export const Conversations: React.FC = () => {
 
     fetch(`/api/contacts/${selectedContactId}/messages`)
       .then(res => res.json())
-      .then(data => setMessages(data))
-      .catch(err => console.error('Erreur messages:', err));
+      .then(data => setMessages(Array.isArray(data) ? data : []))
+      .catch(err => {
+        console.error('Erreur messages:', err);
+        setMessages([]);
+      });
 
     fetch(`/api/contacts/${selectedContactId}/memories`)
       .then(res => res.json())
-      .then(data => setMemories(data))
-      .catch(err => console.error('Erreur memories:', err));
+      .then(data => setMemories(Array.isArray(data) ? data : []))
+      .catch(err => {
+        console.error('Erreur memories:', err);
+        setMemories([]);
+      });
 
     fetch(`/api/appointments?contactId=${selectedContactId}`)
       .then(res => res.json())
-      .then(data => setAppointments(data))
-      .catch(err => console.error('Erreur appointments:', err));
+      .then(data => setAppointments(Array.isArray(data) ? data : []))
+      .catch(err => {
+        console.error('Erreur appointments:', err);
+        setAppointments([]);
+      });
   }, [selectedContactId, triggerRefresh]);
 
   // Scroll en bas lors de l'arrivée d'un message
@@ -348,6 +379,13 @@ export const Conversations: React.FC = () => {
   }, [messages]);
 
   const currentContact = contacts.find(c => c.id === selectedContactId);
+
+  // Sécurité mobile : si aucun contact valide n'est sélectionné, rester sur la liste
+  useEffect(() => {
+    if (!currentContact && mobileView === 'chat') {
+      setMobileView('list');
+    }
+  }, [currentContact, mobileView]);
 
   // Basculer l'activation de l'IA pour ce contact
   const toggleAi = async () => {
@@ -774,10 +812,10 @@ export const Conversations: React.FC = () => {
                           }
 
                           if (displayContent && (!m.transcription || displayContent !== m.transcription)) {
-                            return <div>{renderFormattedWhatsAppText(displayContent)}</div>;
+                            return <div>{renderFormattedWhatsAppText(displayContent) || <p className="whitespace-pre-line">{displayContent}</p>}</div>;
                           }
                           if (!hasAttachment && !isAudio && !m.transcription) {
-                            return <div>{renderFormattedWhatsAppText(m.content)}</div>;
+                            return <div>{renderFormattedWhatsAppText(m.content) || <p className="whitespace-pre-line">{m.content}</p>}</div>;
                           }
                           return null;
                         })()}
@@ -1008,14 +1046,16 @@ export const Conversations: React.FC = () => {
               </button>
             </form>
           </>
-        ) : selectedContactId ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
-            <span className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></span>
-            <span className="text-xs font-medium">Ouverture de la discussion...</span>
-          </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
-            Sélectionnez une conversation pour commencer
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-sm p-6 text-center">
+            <button
+              onClick={() => setMobileView('list')}
+              className="md:hidden mb-4 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center gap-2 cursor-pointer transition"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Voir la liste des conversations</span>
+            </button>
+            <p className="text-xs text-slate-500">Sélectionnez une conversation pour commencer</p>
           </div>
         )}
       </div>
