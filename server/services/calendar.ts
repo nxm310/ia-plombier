@@ -5,11 +5,7 @@ import {
   getSetting,
   saveMessage
 } from '../db/queries.js';
-import {
-  getWhatsAppState,
-  sendManualWhatsAppMessage,
-  broadcast
-} from '../whatsapp/client.js';
+import { broadcast } from './websocket.js';
 
 export interface CalendarEventParams {
   id: number;
@@ -68,11 +64,11 @@ export function generateIcsContent(params: CalendarEventParams): string {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Assistant WhatsApp PME//FR',
+    'PRODID:-//Hub PME Agenda & CRM//FR',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
-    `UID:intervention-${params.id}-${cleanDate}@assistant-whatsapp`,
+    `UID:intervention-${params.id}-${cleanDate}@hub-pme`,
     `DTSTAMP:${nowIso}`,
     `DTSTART;TZID=Europe/Paris:${cleanDate}T${cleanStart}`,
     `DTEND;TZID=Europe/Paris:${cleanDate}T${cleanEnd}`,
@@ -89,7 +85,7 @@ export function generateIcsContent(params: CalendarEventParams): string {
 }
 
 /**
- * Envoie la notification de confirmation d'intervention au client sur WhatsApp
+ * Envoie la notification de confirmation d'intervention au client
  * et l'enregistre immédiatement dans le fil de discussion.
  */
 export async function sendAppointmentConfirmationNotification(
@@ -158,24 +154,19 @@ ${appointment.notes ? `📝 *Précisions :* ${appointment.notes}\n` : ''}${appoi
 Restant à votre entière disposition,
 _${companyName}_`;
 
-  const waState = getWhatsAppState();
-  if (waState.status === 'connected') {
-    await sendManualWhatsAppMessage(contact.phone_number, messageText, contact.id);
-  } else {
-    // Mode local ou hors connexion WhatsApp : enregistre directement le message
-    const savedMsg = await saveMessage(
-      contact.id,
-      'outbound',
-      'human',
-      messageText,
-      undefined,
-      'sent'
-    );
-    broadcast('new_message', {
-      contact,
-      message: savedMsg
-    });
-  }
+  // Enregistre directement le message de confirmation dans la fiche client
+  const savedMsg = await saveMessage(
+    contact.id,
+    'outbound',
+    'human',
+    messageText,
+    undefined,
+    'sent'
+  );
+  broadcast('new_message', {
+    contact,
+    message: savedMsg
+  });
 
   return {
     success: true,
@@ -186,7 +177,7 @@ _${companyName}_`;
 }
 
 /**
- * Envoie la notification d'ordre de mission au collaborateur assigné sur WhatsApp
+ * Prépare la notification d'ordre de mission pour le collaborateur assigné
  * avec tous les détails de l'intervention et le lien direct pour accepter la mission en 1 clic.
  */
 export async function sendCollaboratorAppointmentNotification(
@@ -257,12 +248,7 @@ ${appointment.notes ? `📝 *Précisions / Consignes :* ${appointment.notes}\n` 
 
 _${companyName}_`;
 
-  const waState = getWhatsAppState();
-  if (waState.status === 'connected') {
-    await sendManualWhatsAppMessage(member.phone, messageText);
-  } else {
-    console.log(`[WhatsApp Collaborator Mock] Message pour ${member.name} (${member.phone}) :\n${messageText}`);
-  }
+  console.log(`[Ordre de Mission] Notification préparée pour ${member.name} (${member.phone})`);
 
   return {
     success: true,

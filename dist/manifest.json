@@ -1,6 +1,6 @@
 {
-  "name": "Assistant WhatsApp & Agenda PME",
-  "short_name": "Agenda PME",
+  "name": "Hub PME : Agenda & CRM",
+  "short_name": "Hub PME",
   "description": "Prise de rendez-vous et synchronisation temps réel d'équipe pour PME",
   "start_url": "/",
   "display": "standalone",

@@ -35,7 +35,7 @@ import {
 } from '../services/cloudSync';
 import { INDUSTRY_PRESETS } from '../data/industryPresets';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
-import { formatWhatsAppPhone, handlePhoneInputChange, buildWhatsAppUrl } from '../utils/phone';
+import { formatPhoneNumber, handlePhoneInputChange } from '../utils/phone';
 import {
   generateClientGoogleCalendarUrl,
   downloadClientIcsFile,
@@ -132,20 +132,9 @@ export const Appointments: React.FC = () => {
   const [formDuration, setFormDuration] = useState(30);
   const [isAllDay, setIsAllDay] = useState(false);
   const [formNotes, setFormNotes] = useState('');
-  const [notifyClientOnCreate, setNotifyClientOnCreate] = useState(true);
-  const [notifyCollaboratorOnCreate, setNotifyCollaboratorOnCreate] = useState(true);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [conflictError, setConflictError] = useState<{ error: string; suggestedSlot?: string } | null>(null);
   const [cloudAppointments, setCloudAppointments] = useState<CloudAppointment[]>([]);
-  const [createdSuccessApt, setCreatedSuccessApt] = useState<{
-    appointment: Appointment;
-    clientPhone?: string | null;
-    clientName?: string | null;
-    collabPhone?: string | null;
-    collabName?: string | null;
-    notifyClient: boolean;
-    notifyCollab: boolean;
-  } | null>(null);
 
   // Ajout rapide client depuis la modale de prise de rendez-vous
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
@@ -161,13 +150,13 @@ export const Appointments: React.FC = () => {
     const newContact: Contact = {
       id: Date.now(),
       name: quickClientName.trim() || null,
-      phone_number: formatWhatsAppPhone(quickClientPhone.trim()),
+      phone_number: formatPhoneNumber(quickClientPhone.trim()),
       email: null,
       company: quickClientCompany.trim() || null,
       status: 'active',
       tags: ['Ajout Agenda'],
       notes: null,
-      ai_enabled: 1,
+      ai_enabled: 0,
       avatar: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -294,10 +283,6 @@ export const Appointments: React.FC = () => {
 
   // Modal Détail / Action RDV
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [isSendingNotif, setIsSendingNotif] = useState(false);
-  const [notifFeedback, setNotifFeedback] = useState<string | null>(null);
-  const [isSendingCollabNotif, setIsSendingCollabNotif] = useState(false);
-  const [collabNotifFeedback, setCollabNotifFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/appointments')
@@ -568,9 +553,7 @@ export const Appointments: React.FC = () => {
           notes: formNotes,
           document_url: docUrl,
           document_name: docName,
-          source: 'manual',
-          notify_client: notifyClientOnCreate,
-          notify_collaborator: notifyCollaboratorOnCreate
+          source: 'manual'
         })
       });
 
@@ -578,10 +561,7 @@ export const Appointments: React.FC = () => {
         const createdApt = await res.json();
         if (createdApt && createdApt.id) {
           finalApt = createdApt;
-          backendHandledNotifs = true;
         }
-      } else {
-        console.warn(`Serveur API indisponible ou en lecture seule (${res.status}), basculement en mode local & WhatsApp direct.`);
       }
     } catch (err: any) {
       console.warn('Mode déconnecté ou hébergeur statique :', err);
@@ -602,119 +582,6 @@ export const Appointments: React.FC = () => {
     setFormNotes('');
     setFormContactId('');
     refreshAll();
-
-    // Si le backend n'a pas géré l'envoi WhatsApp en arrière-plan (ex: GitHub Pages / mode statique), proposer l'envoi immédiat en 1 clic
-    if (!backendHandledNotifs && (notifyClientOnCreate || notifyCollaboratorOnCreate)) {
-      setCreatedSuccessApt({
-        appointment: finalApt,
-        clientPhone: selectedContact?.phone_number || null,
-        clientName: selectedContact?.name || selectedContact?.phone_number || null,
-        collabPhone: selectedMember?.phone || null,
-        collabName: selectedMember?.name || null,
-        notifyClient: notifyClientOnCreate && !!selectedContact?.phone_number,
-        notifyCollab: notifyCollaboratorOnCreate && !!selectedMember?.phone
-      });
-    }
-  };
-
-  const handleSendWhatsAppNotification = async (appointmentId: number | string) => {
-    setIsSendingNotif(true);
-    setNotifFeedback(null);
-    const apt = effectiveAppointments.find(a => String(a.id) === String(appointmentId)) || selectedAppointment;
-    const clientPhone = apt?.contact_phone || contacts.find(c => c.id === apt?.contact_id)?.phone_number;
-
-    let sentViaServer = false;
-    try {
-      const res = await fetch(`/api/appointments/${appointmentId}/notify-client`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          host_url: getApiBaseUrl() || window.location.origin
-        })
-      });
-      if (res.ok) {
-        sentViaServer = true;
-        setNotifFeedback('✅ Notification envoyée au client via WhatsApp !');
-        refreshAll();
-        setTimeout(() => setNotifFeedback(null), 4000);
-      }
-    } catch (err) {
-      // Backend non joignable
-    }
-
-    if (!sentViaServer) {
-      if (clientPhone) {
-        const msg = formatClientAppointmentMessage({
-          title: apt?.title || 'Rendez-vous',
-          date: apt?.date || currentDate,
-          startTime: apt?.start_time || '09:00',
-          endTime: apt?.end_time || '10:00',
-          contactName: apt?.contact_name,
-          teamMemberName: apt?.team_member_name,
-          serviceName: apt?.service_name,
-          notes: apt?.notes
-        });
-        const waUrl = buildWhatsAppUrl(clientPhone, msg);
-        window.open(waUrl, '_blank');
-        setNotifFeedback('📲 WhatsApp ouvert avec le message pré-rempli pour le client !');
-        setTimeout(() => setNotifFeedback(null), 5000);
-      } else {
-        setNotifFeedback('⚠️ Aucun numéro de téléphone trouvé pour ce client.');
-        setTimeout(() => setNotifFeedback(null), 4000);
-      }
-    }
-    setIsSendingNotif(false);
-  };
-
-  const handleSendCollaboratorNotification = async (appointmentId: number | string) => {
-    setIsSendingCollabNotif(true);
-    setCollabNotifFeedback(null);
-    const apt = effectiveAppointments.find(a => String(a.id) === String(appointmentId)) || selectedAppointment;
-    const member = teamMembers.find(m => m.id === apt?.team_member_id);
-    const collabPhone = member?.phone;
-
-    let sentViaServer = false;
-    try {
-      const res = await fetch(`/api/appointments/${appointmentId}/notify-collaborator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          host_url: getApiBaseUrl() || window.location.origin
-        })
-      });
-      if (res.ok) {
-        sentViaServer = true;
-        setCollabNotifFeedback('✅ Ordre de mission envoyé au collaborateur sur WhatsApp !');
-        refreshAll();
-        setTimeout(() => setCollabNotifFeedback(null), 4000);
-      }
-    } catch (err) {
-      // Backend non joignable
-    }
-
-    if (!sentViaServer) {
-      if (collabPhone) {
-        const msg = formatCollaboratorMissionMessage({
-          title: apt?.title || 'Mission',
-          date: apt?.date || currentDate,
-          startTime: apt?.start_time || '09:00',
-          endTime: apt?.end_time || '10:00',
-          contactName: apt?.contact_name,
-          contactPhone: apt?.contact_phone,
-          teamMemberName: member?.name || apt?.team_member_name,
-          serviceName: apt?.service_name,
-          notes: apt?.notes
-        });
-        const waUrl = buildWhatsAppUrl(collabPhone, msg);
-        window.open(waUrl, '_blank');
-        setCollabNotifFeedback('👷 WhatsApp ouvert avec l\'ordre de mission pour le collaborateur !');
-        setTimeout(() => setCollabNotifFeedback(null), 5000);
-      } else {
-        setCollabNotifFeedback('⚠️ Aucun numéro de téléphone trouvé pour ce collaborateur.');
-        setTimeout(() => setCollabNotifFeedback(null), 4000);
-      }
-    }
-    setIsSendingCollabNotif(false);
   };
 
   const handleMarkCollaboratorAccepted = async (appointmentId: number | string) => {
@@ -1187,11 +1054,6 @@ export const Appointments: React.FC = () => {
                                           ☀️ Journée
                                         </span>
                                       )}
-                                      {apt.source === 'whatsapp_ai' && (
-                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
-                                          🤖 WA
-                                        </span>
-                                      )}
                                     </div>
                                   </div>
 
@@ -1285,11 +1147,6 @@ export const Appointments: React.FC = () => {
                     {apt.document_url && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium flex items-center gap-1" title={apt.document_name || 'Document joint'}>
                         <Paperclip className="w-2.5 h-2.5" /> PDF
-                      </span>
-                    )}
-                    {apt.source === 'whatsapp_ai' && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
-                        🤖 Réservé via IA WhatsApp
                       </span>
                     )}
                   </div>
@@ -1443,37 +1300,19 @@ export const Appointments: React.FC = () => {
                 )}
               </div>
 
-              {/* Notification WhatsApp & Liens Agenda */}
-              <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
-                      📲 Notification WhatsApp & Agenda
-                    </p>
-                    <p className="text-[10px] text-emerald-700 truncate">
-                      Lien d'ajout direct Google Agenda & Apple Calendrier
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleSendWhatsAppNotification(selectedAppointment.id)}
-                    disabled={isSendingNotif}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs transition shrink-0 flex items-center gap-1 shadow-xs disabled:opacity-50"
-                  >
-                    {isSendingNotif ? 'Envoi...' : 'Envoyer / Renvoyer'}
-                  </button>
-                </div>
-                {notifFeedback && (
-                  <p className="text-[11px] font-semibold text-emerald-800 bg-white/90 p-1.5 rounded-lg border border-emerald-200">
-                    {notifFeedback}
+              {/* Liens Synchronisation Agenda */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5">
+                <div className="min-w-0">
+                  <p className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                    📅 Synchronisation Agenda
                   </p>
-                )}
+                  <p className="text-[10px] text-slate-500">
+                    Boutons d'ajout en 1 clic pour Google Agenda & Apple Calendrier
+                  </p>
+                </div>
 
-                {/* Boutons d'accès direct et test pour le gérant/collaborateur */}
-                <div className="pt-2 border-t border-emerald-200/70 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-emerald-900 w-full mb-0.5">
-                    Boutons d'ajout rapide (cliquables) :
-                  </span>
+                {/* Boutons d'accès direct cliquables */}
+                <div className="pt-1 flex flex-wrap items-center gap-2">
                   <a
                     href={generateClientGoogleCalendarUrl({
                       title: selectedAppointment.service_name ? `Intervention : ${selectedAppointment.service_name}` : selectedAppointment.title,
@@ -1484,7 +1323,7 @@ export const Appointments: React.FC = () => {
                     })}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1"
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5"
                   >
                     📅 Google Agenda
                   </a>
@@ -1498,16 +1337,16 @@ export const Appointments: React.FC = () => {
                       endTime: selectedAppointment.end_time,
                       details: `Intervention avec ${selectedAppointment.team_member_name || 'Notre équipe'}.${selectedAppointment.notes ? `\nPrécisions : ${selectedAppointment.notes}` : ''}`
                     })}
-                    className="px-2.5 py-1.5 bg-black hover:bg-neutral-800 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-2 bg-neutral-900 hover:bg-neutral-800 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                   >
                     🍏 Apple Calendrier (.ics)
                   </button>
                 </div>
               </div>
 
-              {/* Ordre de mission collaborateur & Validation WhatsApp */}
+              {/* Ordre de mission collaborateur */}
               {selectedAppointment.team_member_id && (
-                <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-2.5">
+                <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
@@ -1522,15 +1361,15 @@ export const Appointments: React.FC = () => {
                     <div>
                       {selectedAppointment.collaborator_status === 'accepted' ? (
                         <span className="px-2 py-1 rounded-md bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-bold flex items-center gap-1">
-                          ✓ Mission validée
+                          ✓ Validé
                         </span>
                       ) : selectedAppointment.collaborator_status === 'declined' ? (
                         <span className="px-2 py-1 rounded-md bg-rose-100 border border-rose-300 text-rose-800 text-[10px] font-bold flex items-center gap-1">
-                          ✕ Indisponible
+                          ✕ Refusé
                         </span>
                       ) : (
-                        <span className="px-2 py-1 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-bold flex items-center gap-1 animate-pulse">
-                          ⏳ En attente validation
+                        <span className="px-2 py-1 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-bold flex items-center gap-1">
+                          ⏳ Attente
                         </span>
                       )}
                     </div>
@@ -1542,28 +1381,13 @@ export const Appointments: React.FC = () => {
                     </p>
                   )}
 
-                  {collabNotifFeedback && (
-                    <p className="text-[11px] font-semibold text-indigo-900 bg-white/90 p-1.5 rounded-lg border border-indigo-200">
-                      {collabNotifFeedback}
-                    </p>
-                  )}
-
                   {/* Actions Collaborateur */}
                   <div className="pt-2 border-t border-indigo-200/70 flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleSendCollaboratorNotification(selectedAppointment.id)}
-                      disabled={isSendingCollabNotif}
-                      className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                    >
-                      {isSendingCollabNotif ? 'Envoi...' : '📲 Relancer WhatsApp'}
-                    </button>
-
                     <a
                       href={`/api/appointments/${selectedAppointment.id}/mission`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-[11px] rounded-lg transition flex items-center gap-1"
+                      className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-2xs"
                     >
                       📋 Fiche mission ↗
                     </a>
@@ -1572,7 +1396,7 @@ export const Appointments: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleMarkCollaboratorAccepted(selectedAppointment.id)}
-                        className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] rounded-lg transition flex items-center gap-1 cursor-pointer"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1 shadow-2xs cursor-pointer"
                       >
                         ✓ Marquer accepté
                       </button>
@@ -1686,10 +1510,10 @@ export const Appointments: React.FC = () => {
                       />
                       <input
                         type="tel"
-                        placeholder="Numéro WhatsApp / Tél *"
+                        placeholder="Numéro de téléphone *"
                         value={quickClientPhone}
                         onChange={e => setQuickClientPhone(handlePhoneInputChange(e.target.value))}
-                        onBlur={e => setQuickClientPhone(formatWhatsAppPhone(e.target.value))}
+                        onBlur={e => setQuickClientPhone(formatPhoneNumber(e.target.value))}
                         className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono"
                       />
                     </div>
@@ -2003,44 +1827,6 @@ export const Appointments: React.FC = () => {
                 ></textarea>
               </div>
 
-              {/* Notification automatique du client sur WhatsApp avec lien d'agenda */}
-              <label className="flex items-start gap-2.5 p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl cursor-pointer hover:bg-emerald-100/70 transition">
-                <input
-                  type="checkbox"
-                  checked={notifyClientOnCreate}
-                  onChange={e => setNotifyClientOnCreate(e.target.checked)}
-                  className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 mt-0.5"
-                />
-                <div className="min-w-0">
-                  <span className="font-bold text-xs text-emerald-950 block">
-                    📲 Prévenir le client par WhatsApp avec le lien d'agenda personnel
-                  </span>
-                  <span className="text-[11px] text-emerald-700 block">
-                    Envoie automatiquement la confirmation avec le bouton d'ajout en 1 clic à son Google Agenda ou Apple Calendrier.
-                  </span>
-                </div>
-              </label>
-
-              {/* Notification automatique du collaborateur assigné par WhatsApp avec ordre de mission */}
-              {formTeamMemberId && (
-                <label className="flex items-start gap-2.5 p-3 bg-indigo-50/80 border border-indigo-200 rounded-xl cursor-pointer hover:bg-indigo-100/70 transition">
-                  <input
-                    type="checkbox"
-                    checked={notifyCollaboratorOnCreate}
-                    onChange={e => setNotifyCollaboratorOnCreate(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 mt-0.5"
-                  />
-                  <div className="min-w-0">
-                    <span className="font-bold text-xs text-indigo-950 block">
-                      🛠️ Envoyer un ordre de mission WhatsApp au collaborateur assigné
-                    </span>
-                    <span className="text-[11px] text-indigo-700 block">
-                      Envoie un récapitulatif d'intervention avec le contact client, les pièces jointes et un lien 1 clic pour accepter la mission.
-                    </span>
-                  </div>
-                </label>
-              )}
-
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
@@ -2058,138 +1844,6 @@ export const Appointments: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Confirmation & Envoi WhatsApp 1-Clic */}
-      {createdSuccessApt && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in duration-150 space-y-4 max-h-[90dvh] overflow-y-auto my-auto">
-            <div className="text-center space-y-2">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
-                <CheckCircle2 className="w-7 h-7" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900">Rendez-vous enregistré avec succès !</h3>
-              <p className="text-xs text-slate-500">
-                L'intervention a été ajoutée à votre agenda ({createdSuccessApt.appointment.date} à {createdSuccessApt.appointment.start_time}).
-              </p>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5 text-slate-700">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Intervention :</span>
-                <span className="font-semibold text-slate-900">{createdSuccessApt.appointment.title}</span>
-              </div>
-              {createdSuccessApt.clientName && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Client :</span>
-                  <span className="font-semibold text-slate-900">{createdSuccessApt.clientName}</span>
-                </div>
-              )}
-              {createdSuccessApt.collabName && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Collaborateur :</span>
-                  <span className="font-semibold text-slate-900">{createdSuccessApt.collabName}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Actions WhatsApp directes pour mobile & web */}
-            <div className="space-y-2.5 pt-1">
-              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                Envoyer les messages WhatsApp depuis votre téléphone :
-              </p>
-
-              {createdSuccessApt.notifyClient && createdSuccessApt.clientPhone && (
-                <a
-                  href={buildWhatsAppUrl(
-                    createdSuccessApt.clientPhone,
-                    formatClientAppointmentMessage({
-                      title: createdSuccessApt.appointment.title,
-                      date: createdSuccessApt.appointment.date,
-                      startTime: createdSuccessApt.appointment.start_time,
-                      endTime: createdSuccessApt.appointment.end_time,
-                      contactName: createdSuccessApt.clientName,
-                      teamMemberName: createdSuccessApt.collabName,
-                      serviceName: createdSuccessApt.appointment.service_name,
-                      notes: createdSuccessApt.appointment.notes
-                    })
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-xs transition shadow-xs"
-                >
-                  📲 Envoyer confirmation WhatsApp au client
-                </a>
-              )}
-
-              {createdSuccessApt.notifyCollab && createdSuccessApt.collabPhone && (
-                <a
-                  href={buildWhatsAppUrl(
-                    createdSuccessApt.collabPhone,
-                    formatCollaboratorMissionMessage({
-                      title: createdSuccessApt.appointment.title,
-                      date: createdSuccessApt.appointment.date,
-                      startTime: createdSuccessApt.appointment.start_time,
-                      endTime: createdSuccessApt.appointment.end_time,
-                      contactName: createdSuccessApt.clientName,
-                      contactPhone: createdSuccessApt.clientPhone,
-                      teamMemberName: createdSuccessApt.collabName,
-                      serviceName: createdSuccessApt.appointment.service_name,
-                      notes: createdSuccessApt.appointment.notes
-                    })
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-xs transition shadow-xs"
-                >
-                  👷 Envoyer ordre de mission WhatsApp à {createdSuccessApt.collabName}
-                </a>
-              )}
-            </div>
-
-            {/* Calendriers */}
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-2">
-              <a
-                href={generateClientGoogleCalendarUrl({
-                  title: createdSuccessApt.appointment.title,
-                  date: createdSuccessApt.appointment.date,
-                  startTime: createdSuccessApt.appointment.start_time,
-                  endTime: createdSuccessApt.appointment.end_time,
-                  details: `Intervention avec ${createdSuccessApt.collabName || 'Équipe'}`
-                })}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[11px] rounded-lg transition"
-              >
-                📅 Google Agenda
-              </a>
-              <button
-                type="button"
-                onClick={() => downloadClientIcsFile({
-                  id: createdSuccessApt.appointment.id,
-                  title: createdSuccessApt.appointment.title,
-                  date: createdSuccessApt.appointment.date,
-                  startTime: createdSuccessApt.appointment.start_time,
-                  endTime: createdSuccessApt.appointment.end_time,
-                  details: `Intervention avec ${createdSuccessApt.collabName || 'Équipe'}`
-                })}
-                className="px-3 py-1.5 bg-slate-100 text-slate-800 hover:bg-slate-200 font-bold text-[11px] rounded-lg transition cursor-pointer"
-              >
-                🍏 Apple Calendrier
-              </button>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setCreatedSuccessApt(null)}
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition"
-              >
-                Fermer
-              </button>
-            </div>
           </div>
         </div>
       )}

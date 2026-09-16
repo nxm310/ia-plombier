@@ -26,7 +26,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { CompanySettings, Service, TeamMember, IndustryPresetSummary } from '../types';
 import { INDUSTRY_PRESETS, IndustryPreset, generateCustomTradeConfig } from '../data/industryPresets';
-import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
+import { formatPhoneNumber, handlePhoneInputChange } from '../utils/phone';
 
 const DEFAULT_PRESET_SUMMARIES: IndustryPresetSummary[] = Object.values(INDUSTRY_PRESETS).map(p => ({
   id: p.id,
@@ -208,7 +208,7 @@ export const Settings: React.FC = () => {
     e.preventDefault();
     const updatedCompany = {
       ...company,
-      phone: formatWhatsAppPhone(company.phone)
+      phone: formatPhoneNumber(company.phone)
     };
     setCompany(updatedCompany);
     try {
@@ -510,7 +510,7 @@ export const Settings: React.FC = () => {
             Paramètres & Configuration Entreprise
           </h2>
           <p className="text-slate-500 text-xs mt-1">
-            Gérez votre profil artisan, vos postes métiers, vos prestations et configurez votre agent IA WhatsApp 24/7.
+            Gérez votre profil entreprise, vos postes métiers, vos prestations et paramètres d'agenda.
           </p>
         </div>
 
@@ -643,14 +643,14 @@ export const Settings: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Téléphone d'accueil / WhatsApp * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
+                Téléphone d'accueil * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
               </label>
               <input
                 type="tel"
                 required
                 value={company.phone}
                 onChange={e => setCompany({ ...company, phone: handlePhoneInputChange(e.target.value) })}
-                onBlur={e => setCompany({ ...company, phone: formatWhatsAppPhone(e.target.value) })}
+                onBlur={e => setCompany({ ...company, phone: formatPhoneNumber(e.target.value) })}
                 placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
                 className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono text-xs"
               />
@@ -707,7 +707,7 @@ export const Settings: React.FC = () => {
               placeholder="Décrivez vos spécialités, labels et conditions d'intervention..."
             ></textarea>
             <p className="text-[11px] text-slate-400 mt-1">
-              L'agent IA WhatsApp utilise ce texte pour rassurer vos clients sur vos savoir-faire, décennales et zones d'intervention.
+              Texte de présentation de l'entreprise visible pour vos devis, ordres de mission et fiches d'intervention.
             </p>
           </div>
 

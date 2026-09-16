@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { WhatsAppState, Contact, Message } from '../types';
+import { Contact, Message } from '../types';
 
 interface AppContextType {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  whatsappState: WhatsAppState;
   selectedContactId: number | null;
   setSelectedContactId: (id: number | null) => void;
   conversationMobileView: 'list' | 'chat';
@@ -69,14 +68,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshAll();
   };
 
-  const [whatsappState, setWhatsappState] = useState<WhatsAppState>({
-    status: 'disconnected',
-    qrCodeDataUrl: null,
-    phoneNumber: null,
-    lastConnectedAt: null,
-    error: null
-  });
-
   const refreshAll = () => setTriggerRefresh(prev => prev + 1);
 
   const openConversation = (contactId: number) => {
@@ -89,28 +80,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const wsUrl = getWsBaseUrl();
 
     const fetchStatus = () => {
-      fetch('/api/whatsapp/status')
+      fetch('/api/health')
         .then(res => {
           if (!res.ok) throw new Error('Status ' + res.status);
-          const ct = res.headers.get('content-type') || '';
-          if (!ct.includes('application/json')) throw new Error('Not JSON');
           return res.json();
         })
         .then(data => {
-          setIsBackendConnected(true);
-          if (data && typeof data.status === 'string') {
-            setWhatsappState(data);
+          if (data && data.status === 'ok') {
+            setIsBackendConnected(true);
           }
         })
         .catch(err => {
           setIsBackendConnected(false);
-          console.debug('Status check WhatsApp:', err.message);
+          console.debug('Health check:', err.message);
         });
     };
 
     fetchStatus();
-    // Poll de sécurité toutes les 3 secondes si non connecté pour capturer le QR code immédiatement
-    const pollTimer = setInterval(fetchStatus, 3000);
+    const pollTimer = setInterval(fetchStatus, 15000);
 
     if (!wsUrl) return () => clearInterval(pollTimer);
 
@@ -128,16 +115,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ws.onmessage = (event) => {
           try {
             const parsed = JSON.parse(event.data);
-            if (parsed.event === 'whatsapp_status') {
-              setWhatsappState(parsed.data);
-            } else if (parsed.event === 'whatsapp_qr') {
-              setWhatsappState(prev => ({
-                ...prev,
-                status: 'qr_ready',
-                qrCodeDataUrl: parsed.data.qrDataUrl
-              }));
-            } else if (parsed.event === 'new_message') {
+            if (parsed.event === 'new_message') {
               setLastIncomingMessage(parsed.data);
+              refreshAll();
+            } else if (parsed.event === 'appointment_updated') {
               refreshAll();
             }
           } catch (e) {
@@ -146,14 +127,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
 
         ws.onclose = () => {
-          reconnectTimeout = setTimeout(connectWs, 3000);
+          reconnectTimeout = setTimeout(connectWs, 5000);
         };
 
         ws.onerror = () => {
           if (ws) ws.close();
         };
       } catch (e) {
-        reconnectTimeout = setTimeout(connectWs, 3000);
+        reconnectTimeout = setTimeout(connectWs, 5000);
       }
     };
 
@@ -171,7 +152,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         activeTab,
         setActiveTab,
-        whatsappState,
         selectedContactId,
         setSelectedContactId,
         conversationMobileView,

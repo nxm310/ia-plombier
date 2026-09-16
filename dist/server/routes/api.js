@@ -1,55 +1,17 @@
 import { Router } from 'express';
-import { getAllContacts, getContactById, updateContact, getMessagesByContact, saveMessage, getMemoriesByContact, saveOrUpdateMemory, deleteMemory, getAllTeamMembers, getTeamMemberById, createTeamMember, updateTeamMember, deleteTeamMember, getAllServices, getServiceById, createService, updateService, deleteService, deleteAllServices, seedPlumberServices, getAppointments, getAppointmentById, createAppointment, updateAppointment, deleteAppointment, getSetting, setSetting, getDashboardStats, getOrCreateContact, createContactManually, deleteContact, getCopilotMessages, clearCopilotMessages } from '../db/queries.js';
+import { getAllContacts, getContactById, updateContact, getMessagesByContact, saveMessage, getMemoriesByContact, saveOrUpdateMemory, deleteMemory, getAllTeamMembers, getTeamMemberById, createTeamMember, updateTeamMember, deleteTeamMember, getAllServices, getServiceById, createService, updateService, deleteService, deleteAllServices, seedPlumberServices, getAppointments, getAppointmentById, createAppointment, updateAppointment, deleteAppointment, getSetting, setSetting, getDashboardStats, getOrCreateContact, createContactManually, deleteContact } from '../db/queries.js';
 import { INDUSTRY_PRESETS, generateCustomTradeConfig } from '../services/industryPresets.js';
 import { getAvailableSlots } from '../services/appointments.js';
 import { sendAppointmentConfirmationNotification, sendCollaboratorAppointmentNotification, generateIcsContent, generateGoogleCalendarUrl } from '../services/calendar.js';
 import path from 'path';
 import fs from 'fs';
-import { getWhatsAppState, initWhatsAppClient, resetWhatsAppSession, disconnectWhatsApp, sendManualWhatsAppMessage, sendManualWhatsAppFile, requestPairingCode, broadcast } from '../whatsapp/client.js';
-import { generateAgentReply } from '../ai/agent.js';
-import { chatWithCopilot } from '../ai/copilot.js';
+import { broadcast } from '../services/websocket.js';
 export const apiRouter = Router();
 // Stats Dashboard
 apiRouter.get('/stats', async (_req, res) => {
     try {
         const stats = await getDashboardStats();
-        const waState = getWhatsAppState();
-        res.json({ ...stats, whatsapp: waState });
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-// =========================================================================
-// Copilote IA pour le Gérant (Chat interne avec exécution d'actions)
-// =========================================================================
-apiRouter.get('/copilot/messages', async (_req, res) => {
-    try {
-        const messages = await getCopilotMessages();
-        res.json(messages);
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-apiRouter.post('/copilot/chat', async (req, res) => {
-    try {
-        const { message } = req.body;
-        if (!message || !message.trim()) {
-            return res.status(400).json({ error: 'Le message ne peut pas être vide.' });
-        }
-        const result = await chatWithCopilot({ message: message.trim() });
-        res.json(result);
-    }
-    catch (err) {
-        console.error('[API] Erreur Copilote Chat:', err);
-        res.status(500).json({ error: err.message || 'Erreur lors du traitement copilote' });
-    }
-});
-apiRouter.delete('/copilot/messages', async (_req, res) => {
-    try {
-        await clearCopilotMessages();
-        res.json({ success: true });
+        res.json(stats);
     }
     catch (err) {
         res.status(500).json({ error: err.message });
@@ -180,17 +142,13 @@ apiRouter.post('/messages/send', async (req, res) => {
         if (!phone) {
             return res.status(400).json({ error: 'Numéro de téléphone requis' });
         }
-        const waState = getWhatsAppState();
-        if (waState.status === 'connected') {
-            await sendManualWhatsAppMessage(phone, content);
-            res.json({ success: true, via: 'whatsapp' });
-        }
-        else {
-            // En mode non connecté / démo : enregistre directement le message dans la base
-            const contact = await getOrCreateContact(phone);
-            const msg = await saveMessage(contact.id, 'outbound', 'human', content, undefined, 'sent');
-            res.json({ success: true, via: 'local', message: msg });
-        }
+        const contact = await getOrCreateContact(phone);
+        const msg = await saveMessage(contact.id, 'outbound', 'human', content, undefined, 'sent');
+        broadcast('new_message', {
+            contact,
+            message: msg
+        });
+        res.json({ success: true, via: 'crm', message: msg });
     }
     catch (err) {
         res.status(500).json({ error: err.message });
@@ -239,21 +197,10 @@ apiRouter.post('/messages/send-file', async (req, res) => {
             mediaType = 'spreadsheet';
         else if (lowerName.match(/\.(docx|doc)$/))
             mediaType = 'word';
-        const waState = getWhatsAppState();
-        let whatsappMessageId;
-        if (waState.status === 'connected') {
-            try {
-                const sent = await sendManualWhatsAppFile(cleanPhone, targetPath, fileName, mimeType || 'application/octet-stream', caption);
-                whatsappMessageId = sent.messageId;
-            }
-            catch (waErr) {
-                console.error('[API] Erreur envoi fichier WhatsApp:', waErr);
-            }
-        }
         const contentText = caption
             ? `${caption}\n[📎 ${fileName}]`
             : `[📎 ${fileName}]`;
-        const savedMsg = await saveMessage(contact.id, 'outbound', 'human', contentText, whatsappMessageId, 'sent', mediaType, mediaUrl, fileName, fileSize);
+        const savedMsg = await saveMessage(contact.id, 'outbound', 'human', contentText, undefined, 'sent', mediaType, mediaUrl, fileName, fileSize);
         broadcast('new_message', {
             contact,
             message: savedMsg
@@ -549,14 +496,6 @@ async function executeApplyPreset(preset, replaceServices = true) {
             });
         }
     }
-    // 4. Mettre à jour le prompt système de Clara IA
-    const currentAi = (await getSetting('ai_config')) || {};
-    await setSetting('ai_config', {
-        ...currentAi,
-        provider: currentAi.provider || 'gemini',
-        model: currentAi.model || 'gemini-2.5-flash',
-        systemPrompt: preset.systemPrompt
-    });
 }
 // Appliquer un modèle sectoriel existant
 apiRouter.post('/presets/:id/apply', async (req, res) => {
@@ -678,22 +617,22 @@ apiRouter.post('/appointments', async (req, res) => {
         const id = await createAppointment(payload);
         const appointment = await getAppointmentById(id);
         const hostUrl = `${req.protocol}://${req.get('host')}`;
-        // Prévenir automatiquement le client par WhatsApp avec lien d'agenda
+        // Prévenir automatiquement le client avec confirmation et lien d'agenda
         if (req.body.notify_client !== false && req.body.status !== 'cancelled' && req.body.status !== 'pending') {
             try {
                 await sendAppointmentConfirmationNotification(id, hostUrl);
             }
             catch (notifErr) {
-                console.error('[Appointments] Erreur envoi notification WhatsApp client:', notifErr);
+                console.error('[Appointments] Erreur enregistrement notification client:', notifErr);
             }
         }
-        // Prévenir automatiquement le collaborateur assigné par WhatsApp avec ordre de mission & acceptation 1 clic
+        // Prévenir automatiquement le collaborateur assigné avec ordre de mission & acceptation 1 clic
         if (req.body.notify_collaborator !== false && appointment?.team_member_id && req.body.status !== 'cancelled') {
             try {
                 await sendCollaboratorAppointmentNotification(id, hostUrl);
             }
             catch (collabNotifErr) {
-                console.error('[Appointments] Erreur envoi ordre de mission collaborateur:', collabNotifErr);
+                console.error('[Appointments] Erreur préparation ordre de mission collaborateur:', collabNotifErr);
             }
         }
         res.status(201).json({ id, ...appointment });
@@ -718,7 +657,7 @@ apiRouter.patch('/appointments/:id', async (req, res) => {
                 await sendAppointmentConfirmationNotification(id, hostUrl);
             }
             catch (notifErr) {
-                console.error('[Appointments] Erreur envoi notification WhatsApp client:', notifErr);
+                console.error('[Appointments] Erreur enregistrement notification client:', notifErr);
             }
         }
         // Si la notification collaborateur est demandée ou nouveau collaborateur assigné
@@ -729,7 +668,7 @@ apiRouter.patch('/appointments/:id', async (req, res) => {
                 await sendCollaboratorAppointmentNotification(id, hostUrl);
             }
             catch (collabNotifErr) {
-                console.error('[Appointments] Erreur envoi ordre de mission collaborateur:', collabNotifErr);
+                console.error('[Appointments] Erreur préparation ordre de mission collaborateur:', collabNotifErr);
             }
         }
         res.json({ success: true, id, appointment: updatedApt });
@@ -738,7 +677,7 @@ apiRouter.patch('/appointments/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-// Envoi manuel de la notification WhatsApp client avec lien d'agenda
+// Envoi manuel de la notification de confirmation client avec lien d'agenda
 apiRouter.post('/appointments/:id/notify-client', async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -750,7 +689,7 @@ apiRouter.post('/appointments/:id/notify-client', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-// Envoi manuel de l'ordre de mission WhatsApp au collaborateur assigné
+// Préparation manuelle de l'ordre de mission au collaborateur assigné
 apiRouter.post('/appointments/:id/notify-collaborator', async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -1107,7 +1046,6 @@ apiRouter.get('/appointments/:id/mission', async (req, res) => {
         const clientName = contact?.name || apt.contact_name || 'Client';
         const clientPhone = contact?.phone_number || apt.contact_phone || '';
         const cleanClientPhone = clientPhone.replace(/[^0-9+]/g, '');
-        const waClientLink = cleanClientPhone ? `https://wa.me/${cleanClientPhone.replace(/[^0-9]/g, '')}` : '';
         const collaboratorName = apt.team_member_name || 'Collaborateur';
         const title = apt.service_name ? `Intervention : ${apt.service_name}` : (apt.title || 'Ordre de mission');
         const dateObj = new Date(`${apt.date}T00:00:00`);
@@ -1285,16 +1223,12 @@ apiRouter.get('/appointments/:id/mission', async (req, res) => {
             >
               📞 Appeler
             </a>
-            ${waClientLink ? `
-              <a
-                href="${waClientLink}"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition"
-              >
-                💬 WhatsApp
-              </a>
-            ` : ''}
+            <a
+              href="sms:${cleanClientPhone}"
+              class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition"
+            >
+              💬 Envoyer SMS
+            </a>
           </div>
         ` : ''}
       </div>
@@ -1413,36 +1347,6 @@ apiRouter.delete('/appointments/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-// Test rapide de la clé Google Gemini API
-apiRouter.post('/settings/test-gemini', async (req, res) => {
-    try {
-        let key = req.body?.apiKey;
-        if (!key) {
-            const aiConfig = await getSetting('ai_config');
-            key = aiConfig?.geminiApiKey || process.env.GEMINI_API_KEY;
-        }
-        if (!key || !key.trim()) {
-            return res.status(400).json({ ok: false, message: 'Aucune clé API Gemini fournie ou configurée.' });
-        }
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(key.trim());
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-        const result = await model.generateContent('Réponds uniquement: OK');
-        const reply = result.response.text();
-        res.json({
-            ok: true,
-            message: 'API Gemini 2.5 Flash connectée avec succès !',
-            model: 'gemini-2.5-flash',
-            response: reply.trim()
-        });
-    }
-    catch (err) {
-        res.status(400).json({
-            ok: false,
-            message: err.message || 'Erreur lors du test de la clé Gemini'
-        });
-    }
-});
 // Paramètres
 apiRouter.get('/settings/:key', async (req, res) => {
     try {
@@ -1459,82 +1363,6 @@ apiRouter.post('/settings/:key', async (req, res) => {
         const key = req.params.key;
         await setSetting(key, req.body);
         res.json({ success: true, key });
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-// Contrôles WhatsApp
-apiRouter.get('/whatsapp/status', (_req, res) => {
-    res.json(getWhatsAppState());
-});
-apiRouter.post('/whatsapp/connect', async (req, res) => {
-    try {
-        if (req.body?.force) {
-            await resetWhatsAppSession();
-        }
-        else {
-            await initWhatsAppClient();
-        }
-        res.json(getWhatsAppState());
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-apiRouter.post('/whatsapp/reset', async (_req, res) => {
-    try {
-        await resetWhatsAppSession();
-        res.json(getWhatsAppState());
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-apiRouter.post('/whatsapp/disconnect', async (_req, res) => {
-    try {
-        await disconnectWhatsApp();
-        res.json({ success: true });
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-apiRouter.post('/whatsapp/pairing-code', async (req, res) => {
-    try {
-        const { phoneNumber } = req.body;
-        if (!phoneNumber)
-            return res.status(400).json({ error: 'Numéro de téléphone requis' });
-        const code = await requestPairingCode(phoneNumber);
-        res.json({ pairingCode: code });
-    }
-    catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-// Simulation de message entrant pour tests et démos immédiats sans téléphone sous la main
-apiRouter.post('/whatsapp/simulate-incoming', async (req, res) => {
-    try {
-        const { phoneNumber = '+33699887766', name = 'Client Test', message } = req.body;
-        if (!message)
-            return res.status(400).json({ error: 'Message requis' });
-        const contact = await getOrCreateContact(phoneNumber, name);
-        const savedInbound = await saveMessage(contact.id, 'inbound', 'client', message);
-        let aiReplyText = '';
-        if (contact.ai_enabled === 1) {
-            aiReplyText = await generateAgentReply({
-                contact,
-                incomingText: message
-            });
-            if (aiReplyText) {
-                await saveMessage(contact.id, 'outbound', 'ai', aiReplyText);
-            }
-        }
-        res.json({
-            contact,
-            inbound: savedInbound,
-            aiReply: aiReplyText
-        });
     }
     catch (err) {
         res.status(500).json({ error: err.message });

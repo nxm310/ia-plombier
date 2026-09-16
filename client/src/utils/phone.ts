@@ -1,5 +1,5 @@
 /**
- * Utilitaire de formatage automatique des numéros de téléphone au format WhatsApp international.
+ * Utilitaire de formatage automatique des numéros de téléphone.
  * 
  * Exemples :
  * - "0323456776" -> "+33 3 23 45 67 76"
@@ -8,7 +8,7 @@
  * - "+33612345678" -> "+33 6 12 34 56 78"
  * - "33323456776" -> "+33 3 23 45 67 76"
  */
-export function formatWhatsAppPhone(raw: string): string {
+export function formatPhoneNumber(raw: string): string {
   if (!raw) return '';
 
   const trimmed = raw.trim();
@@ -68,7 +68,7 @@ export function handlePhoneInputChange(value: string): string {
   const digits = value.replace(/\D/g, '');
   // Dès qu'on atteint 10 chiffres commençant par 0, ou 11 chiffres commençant par 33, formater immédiatement
   if ((digits.length === 10 && digits.startsWith('0')) || (digits.length === 11 && digits.startsWith('33'))) {
-    return formatWhatsAppPhone(value);
+    return formatPhoneNumber(value);
   }
   return value;
 }
@@ -76,9 +76,9 @@ export function handlePhoneInputChange(value: string): string {
 export const autoFormatPhone = handlePhoneInputChange;
 
 /**
- * Nettoie un numéro de téléphone pour l'utiliser dans un lien wa.me (chiffres uniquement avec préfixe pays)
+ * Nettoie un numéro de téléphone (chiffres uniquement avec préfixe pays)
  */
-export function getCleanWhatsAppDigits(phone: string): string {
+export function getCleanDigits(phone: string): string {
   if (!phone) return '';
   let clean = phone.replace(/[\s.\-_/()+]/g, '');
   if (clean.startsWith('0033')) {
@@ -90,15 +90,15 @@ export function getCleanWhatsAppDigits(phone: string): string {
 }
 
 /**
- * Construit une URL wa.me pour ouvrir directement WhatsApp avec un message pré-rempli
+ * Construit une URL sms: standard pour envoyer un SMS
  */
-export function buildWhatsAppUrl(phone: string, message?: string): string {
-  const digits = getCleanWhatsAppDigits(phone);
+export function buildSmsUrl(phone: string, message?: string): string {
+  const digits = getCleanDigits(phone);
   if (!digits) return '';
-  const baseUrl = `https://wa.me/${digits}`;
+  const target = digits.startsWith('33') ? `+${digits}` : digits;
   if (message) {
-    return `${baseUrl}?text=${encodeURIComponent(message)}`;
+    return `sms:${target}?body=${encodeURIComponent(message)}`;
   }
-  return baseUrl;
+  return `sms:${target}`;
 }
 

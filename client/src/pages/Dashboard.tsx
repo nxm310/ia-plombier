@@ -3,13 +3,12 @@ import {
   Users,
   MessageSquare,
   Calendar,
-  Sparkles,
-  QrCode,
   ArrowRight,
   Send,
   Clock,
   CheckCircle2,
-  AlertCircle
+  PlusCircle,
+  Briefcase
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DashboardStats, Appointment, Contact } from '../types';
@@ -17,12 +16,12 @@ import { getStoredContacts } from '../data/defaultContacts';
 
 export const Dashboard: React.FC = () => {
   const {
-    whatsappState,
     setActiveTab,
     openConversation,
     setConversationMobileView,
     triggerRefresh,
-    refreshAll
+    refreshAll,
+    isBackendConnected
   } = useApp();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -66,7 +65,7 @@ export const Dashboard: React.FC = () => {
     setQuickSendSuccess(null);
 
     try {
-      const res = await fetch('/api/messages/send', {
+      const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -76,7 +75,7 @@ export const Dashboard: React.FC = () => {
       });
       const data = await res.json();
       if (data.success) {
-        setQuickSendSuccess(`Message transmis avec succès (${data.via || 'WhatsApp'}) !`);
+        setQuickSendSuccess(`Message enregistré et transmis avec succès !`);
         setQuickMessage('');
         refreshAll();
         setTimeout(() => setQuickSendSuccess(null), 4000);
@@ -96,30 +95,23 @@ export const Dashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 p-4 sm:p-6 rounded-2xl text-white shadow-lg shadow-emerald-900/10">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-semibold uppercase tracking-wider mb-2">
-            <MessageSquare className="w-3.5 h-3.5" />
-            Hub WhatsApp & Agenda PME
+            <Briefcase className="w-3.5 h-3.5" />
+            Hub PME : Agenda & CRM
           </div>
           <h2 className="text-2xl font-bold tracking-tight">Bienvenue sur votre Espace Entreprise</h2>
           <p className="text-emerald-100 text-sm mt-1 max-w-xl">
-            Pilotez vos échanges clients WhatsApp, planifiez vos interventions et synchronisez les plannings de votre équipe en temps réel.
+            Pilotez vos interventions, planifiez les créneaux de votre équipe et gérez votre fichier clients en toute simplicité.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          {whatsappState.status !== 'connected' ? (
-            <button
-              onClick={() => setActiveTab('whatsapp')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white text-emerald-800 rounded-xl font-semibold text-sm shadow-sm hover:bg-emerald-50 transition"
-            >
-              <QrCode className="w-4 h-4" />
-              Connecter WhatsApp
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/40 border border-emerald-300/40 rounded-xl text-sm font-medium">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-pulse"></span>
-              Connecté : {whatsappState.phoneNumber || 'En ligne'}
-            </div>
-          )}
+          <button
+            onClick={() => setActiveTab('appointments')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white text-emerald-800 rounded-xl font-semibold text-sm shadow-sm hover:bg-emerald-50 transition cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Planifier un rendez-vous
+          </button>
         </div>
       </div>
 
@@ -131,7 +123,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div>
             <p className="text-xs font-medium text-slate-500">Clients / Contacts</p>
-            <p className="text-2xl font-bold text-slate-800">{stats?.totalContacts ?? '0'}</p>
+            <p className="text-2xl font-bold text-slate-800">{stats?.totalContacts ?? contacts.length}</p>
           </div>
         </div>
 
@@ -140,7 +132,7 @@ export const Dashboard: React.FC = () => {
             <MessageSquare className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-500">Messages Aujourd'hui</p>
+            <p className="text-xs font-medium text-slate-500">Messages Échangés</p>
             <p className="text-2xl font-bold text-slate-800">{stats?.messagesToday ?? '0'}</p>
           </div>
         </div>
@@ -151,7 +143,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div>
             <p className="text-xs font-medium text-slate-500">Rendez-vous Aujourd'hui</p>
-            <p className="text-2xl font-bold text-slate-800">{stats?.appointmentsToday ?? '0'}</p>
+            <p className="text-2xl font-bold text-slate-800">{stats?.appointmentsToday ?? appointments.length}</p>
           </div>
         </div>
 
@@ -161,14 +153,14 @@ export const Dashboard: React.FC = () => {
           </div>
           <div>
             <p className="text-xs font-medium text-slate-500">Collaborateurs Actifs</p>
-            <p className="text-2xl font-bold text-slate-800">{stats?.activeTeamMembers ?? '0'}</p>
+            <p className="text-2xl font-bold text-slate-800">{stats?.activeTeamMembers ?? '3'}</p>
           </div>
         </div>
       </div>
 
-      {/* Main Grid: Quick Send WhatsApp + Upcoming Appointments */}
+      {/* Main Grid: Quick Message + Upcoming Appointments */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left: Direct Quick Send WhatsApp */}
+        {/* Left: Quick Message to Client */}
         <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -176,23 +168,23 @@ export const Dashboard: React.FC = () => {
                 <Send className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-800">Envoi Rapide WhatsApp Direct</h3>
+                <h3 className="text-base font-bold text-slate-800">Envoi Rapide de Message Direct</h3>
                 <p className="text-xs text-slate-500">Transmettez immédiatement un message ou une confirmation à un client</p>
               </div>
             </div>
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
-              WhatsApp Direct
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-medium border border-slate-200">
+              Message Direct
             </span>
           </div>
 
           <form onSubmit={handleQuickSend} className="space-y-3 pt-2">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Numéro WhatsApp du destinataire</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Numéro du destinataire</label>
               <input
                 type="text"
                 value={quickPhone}
                 onChange={e => setQuickPhone(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
                 placeholder="+33 6 12 34 56 78"
               />
             </div>
@@ -230,7 +222,7 @@ export const Dashboard: React.FC = () => {
             <span className="text-xs text-slate-400 self-center mr-1">Modèles express :</span>
             <button
               type="button"
-              onClick={() => setQuickMessage("Bonjour, nous venons de vous transmettre votre devis par message. Restant à votre disposition !")}
+              onClick={() => setQuickMessage("Bonjour, nous venons de vous transmettre votre devis. Restant à votre disposition !")}
               className="text-xs px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
             >
               📄 Devis envoyé
@@ -270,7 +262,7 @@ export const Dashboard: React.FC = () => {
               </div>
               <button
                 onClick={() => setActiveTab('appointments')}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1"
+                className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1 cursor-pointer"
               >
                 Voir tout <ArrowRight className="w-3.5 h-3.5" />
               </button>
@@ -306,18 +298,15 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
 
-          {/* Recent active chats summary */}
+          {/* Recent active contacts summary */}
           <div className="pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-700">Conversations récentes</span>
+              <span className="text-xs font-semibold text-slate-700">Fiches clients récentes</span>
               <button
-                onClick={() => {
-                  setConversationMobileView('list');
-                  setActiveTab('conversations');
-                }}
+                onClick={() => setActiveTab('clients')}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-medium cursor-pointer"
               >
-                Accéder au chat
+                Gérer les clients
               </button>
             </div>
             <div className="space-y-1.5">
@@ -326,16 +315,14 @@ export const Dashboard: React.FC = () => {
                   key={c.id}
                   onClick={() => openConversation(c.id)}
                   className="w-full text-left p-2 rounded-lg hover:bg-slate-100 flex items-center justify-between transition text-xs cursor-pointer active:scale-[0.99]"
-                  title={`Ouvrir la discussion avec ${c.name || c.phone_number}`}
+                  title={`Ouvrir les échanges avec ${c.name || c.phone_number}`}
                 >
                   <div className="truncate pr-2">
                     <span className="font-semibold text-slate-800">{c.name || c.phone_number}</span>
-                    <p className="text-slate-500 truncate">{c.last_message || 'Pas de message'}</p>
+                    <p className="text-slate-500 truncate">{c.last_message || 'Fiche client active'}</p>
                   </div>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${
-                    c.ai_enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {c.ai_enabled ? 'IA Active' : 'Humain'}
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 bg-slate-100 text-slate-700">
+                    {c.status || 'Client'}
                   </span>
                 </button>
               ))}

@@ -3,12 +3,13 @@ import {
   LayoutDashboard,
   MessageSquare,
   Calendar,
-  Users,
-  QrCode,
   Settings,
   UserCheck,
   Briefcase,
-  X
+  X,
+  Sparkles,
+  CheckCircle2,
+  WifiOff
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CURRENT_PATCH_VERSION } from '../data/patchNotes';
@@ -20,43 +21,16 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpenPatchNotes }) => {
-  const { activeTab, setActiveTab, setConversationMobileView, whatsappState } = useApp();
+  const { activeTab, setActiveTab, setConversationMobileView, isBackendConnected } = useApp();
 
   const navItems = [
     { id: 'dashboard', label: 'Vue d\'ensemble', icon: LayoutDashboard },
-    { id: 'conversations', label: 'Conversations Live', icon: MessageSquare },
+    { id: 'conversations', label: 'Messagerie Directe', icon: MessageSquare },
     { id: 'appointments', label: 'Agenda Visuel', icon: Calendar },
     { id: 'clients', label: 'Clients & CRM', icon: UserCheck },
     { id: 'team', label: 'Équipe & Horaires', icon: Briefcase },
-    { id: 'whatsapp', label: 'Connexion WhatsApp', icon: QrCode },
     { id: 'settings', label: 'Paramètres Entreprise & Métiers', icon: Settings },
   ];
-
-  const getStatusBadge = () => {
-    switch (whatsappState.status) {
-      case 'connected':
-        return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            WhatsApp 24/7 Connecté
-          </span>
-        );
-      case 'qr_ready':
-        return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-            Prêt à être lié
-          </span>
-        );
-      default:
-        return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-            WhatsApp Déconnecté
-          </span>
-        );
-    }
-  };
 
   const handleSelectTab = (tabId: string) => {
     if (tabId === 'conversations') {
@@ -90,8 +64,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
                 <Briefcase className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="font-bold text-base text-slate-900 leading-tight">Hub PME & WhatsApp</h1>
-                <p className="text-xs text-slate-500 font-medium">Gestion d'équipe & Agenda</p>
+                <h1 className="font-bold text-base text-slate-900 leading-tight">Hub PME</h1>
+                <p className="text-xs text-slate-500 font-medium">Agenda, CRM & Équipe</p>
               </div>
             </div>
 
@@ -105,7 +79,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
           </div>
 
           <div className="flex flex-col gap-1.5">
-            {getStatusBadge()}
+            {isBackendConnected ? (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Serveur Cloud Connecté
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200">
+                <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                Mode Autonome
+              </span>
+            )}
           </div>
         </div>
 
@@ -154,11 +138,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
           <div className="bg-emerald-50/80 border border-emerald-100 rounded-xl p-3">
             <div className="flex items-center gap-2 text-emerald-800 text-xs font-semibold mb-1">
-              <Sparkles className="w-4 h-4 text-emerald-600" />
-              Mémoire & IA Active
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Hub PME Opérationnel
             </div>
             <p className="text-[11px] text-emerald-700/90 leading-relaxed">
-              Vos clients reçoivent des réponses instantanées et réservent leurs créneaux 24h/24.
+              Agenda visuel, fiches clients CRM et synchronisation Google & Apple Calendrier.
             </p>
           </div>
         </div>

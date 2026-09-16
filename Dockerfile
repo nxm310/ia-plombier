@@ -22,7 +22,7 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
-# Point de montage persistant pour la session WhatsApp et la base SQLite
+# Point de montage persistant pour la base SQLite et les médias
 VOLUME ["/data"]
 
 EXPOSE 3001

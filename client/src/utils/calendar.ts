@@ -1,5 +1,5 @@
 /**
- * Utilitaires pour l'agenda, l'export de calendrier et la messagerie WhatsApp
+ * Utilitaires pour l'agenda, l'export de calendrier et les notifications
  */
 
 export function generateClientGoogleCalendarUrl(params: {
@@ -38,12 +38,12 @@ export function downloadClientIcsFile(params: {
   const cleanDate = (params.date || '').replace(/-/g, '');
   const cleanStart = (params.startTime || '09:00').replace(/:/g, '') + '00';
   const cleanEnd = (params.endTime || '10:00').replace(/:/g, '') + '00';
-  const uid = `apt-${params.id}-${cleanDate}@artisan`;
+  const uid = `apt-${params.id}-${cleanDate}@hub-pme`;
 
   const icsLines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Artisan Assistant//FR',
+    'PRODID:-//Hub PME//FR',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

@@ -46,16 +46,7 @@ import {
 } from '../services/calendar.js';
 import path from 'path';
 import fs from 'fs';
-import {
-  getWhatsAppState,
-  initWhatsAppClient,
-  resetWhatsAppSession,
-  disconnectWhatsApp,
-  sendManualWhatsAppMessage,
-  sendManualWhatsAppFile,
-  requestPairingCode,
-  broadcast
-} from '../whatsapp/client.js';
+import { broadcast } from '../services/websocket.js';
 
 export const apiRouter = Router();
 
@@ -63,8 +54,7 @@ export const apiRouter = Router();
 apiRouter.get('/stats', async (_req: Request, res: Response) => {
   try {
     const stats = await getDashboardStats();
-    const waState = getWhatsAppState();
-    res.json({ ...stats, whatsapp: waState });
+    res.json(stats);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -193,16 +183,13 @@ apiRouter.post('/messages/send', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Numéro de téléphone requis' });
     }
 
-    const waState = getWhatsAppState();
-    if (waState.status === 'connected') {
-      await sendManualWhatsAppMessage(phone, content);
-      res.json({ success: true, via: 'whatsapp' });
-    } else {
-      // En mode non connecté / démo : enregistre directement le message dans la base
-      const contact = await getOrCreateContact(phone);
-      const msg = await saveMessage(contact.id, 'outbound', 'human', content, undefined, 'sent');
-      res.json({ success: true, via: 'local', message: msg });
-    }
+    const contact = await getOrCreateContact(phone);
+    const msg = await saveMessage(contact.id, 'outbound', 'human', content, undefined, 'sent');
+    broadcast('new_message', {
+      contact,
+      message: msg
+    });
+    res.json({ success: true, via: 'crm', message: msg });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -256,24 +243,6 @@ apiRouter.post('/messages/send-file', async (req: Request, res: Response) => {
     else if (lowerName.match(/\.(xlsx|xls|csv)$/)) mediaType = 'spreadsheet';
     else if (lowerName.match(/\.(docx|doc)$/)) mediaType = 'word';
 
-    const waState = getWhatsAppState();
-    let whatsappMessageId: string | undefined;
-
-    if (waState.status === 'connected') {
-      try {
-        const sent = await sendManualWhatsAppFile(
-          cleanPhone,
-          targetPath,
-          fileName,
-          mimeType || 'application/octet-stream',
-          caption
-        );
-        whatsappMessageId = sent.messageId;
-      } catch (waErr: any) {
-        console.error('[API] Erreur envoi fichier WhatsApp:', waErr);
-      }
-    }
-
     const contentText = caption
       ? `${caption}\n[📎 ${fileName}]`
       : `[📎 ${fileName}]`;
@@ -283,7 +252,7 @@ apiRouter.post('/messages/send-file', async (req: Request, res: Response) => {
       'outbound',
       'human',
       contentText,
-      whatsappMessageId,
+      undefined,
       'sent',
       mediaType,
       mediaUrl,
@@ -727,21 +696,21 @@ apiRouter.post('/appointments', async (req: Request, res: Response) => {
 
     const hostUrl = `${req.protocol}://${req.get('host')}`;
 
-    // Prévenir automatiquement le client par WhatsApp avec lien d'agenda
+    // Prévenir automatiquement le client avec confirmation et lien d'agenda
     if (req.body.notify_client !== false && req.body.status !== 'cancelled' && req.body.status !== 'pending') {
       try {
         await sendAppointmentConfirmationNotification(id, hostUrl);
       } catch (notifErr) {
-        console.error('[Appointments] Erreur envoi notification WhatsApp client:', notifErr);
+        console.error('[Appointments] Erreur enregistrement notification client:', notifErr);
       }
     }
 
-    // Prévenir automatiquement le collaborateur assigné par WhatsApp avec ordre de mission & acceptation 1 clic
+    // Prévenir automatiquement le collaborateur assigné avec ordre de mission & acceptation 1 clic
     if (req.body.notify_collaborator !== false && appointment?.team_member_id && req.body.status !== 'cancelled') {
       try {
         await sendCollaboratorAppointmentNotification(id, hostUrl);
       } catch (collabNotifErr) {
-        console.error('[Appointments] Erreur envoi ordre de mission collaborateur:', collabNotifErr);
+        console.error('[Appointments] Erreur préparation ordre de mission collaborateur:', collabNotifErr);
       }
     }
 
@@ -770,7 +739,7 @@ apiRouter.patch('/appointments/:id', async (req: Request, res: Response) => {
       try {
         await sendAppointmentConfirmationNotification(id, hostUrl);
       } catch (notifErr) {
-        console.error('[Appointments] Erreur envoi notification WhatsApp client:', notifErr);
+        console.error('[Appointments] Erreur enregistrement notification client:', notifErr);
       }
     }
 
@@ -783,7 +752,7 @@ apiRouter.patch('/appointments/:id', async (req: Request, res: Response) => {
       try {
         await sendCollaboratorAppointmentNotification(id, hostUrl);
       } catch (collabNotifErr) {
-        console.error('[Appointments] Erreur envoi ordre de mission collaborateur:', collabNotifErr);
+        console.error('[Appointments] Erreur préparation ordre de mission collaborateur:', collabNotifErr);
       }
     }
 
@@ -793,7 +762,7 @@ apiRouter.patch('/appointments/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Envoi manuel de la notification WhatsApp client avec lien d'agenda
+// Envoi manuel de la notification de confirmation client avec lien d'agenda
 apiRouter.post('/appointments/:id/notify-client', async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -805,7 +774,7 @@ apiRouter.post('/appointments/:id/notify-client', async (req: Request, res: Resp
   }
 });
 
-// Envoi manuel de l'ordre de mission WhatsApp au collaborateur assigné
+// Préparation manuelle de l'ordre de mission au collaborateur assigné
 apiRouter.post('/appointments/:id/notify-collaborator', async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -1177,7 +1146,6 @@ apiRouter.get('/appointments/:id/mission', async (req: Request, res: Response) =
     const clientName = contact?.name || apt.contact_name || 'Client';
     const clientPhone = contact?.phone_number || apt.contact_phone || '';
     const cleanClientPhone = clientPhone.replace(/[^0-9+]/g, '');
-    const waClientLink = cleanClientPhone ? `https://wa.me/${cleanClientPhone.replace(/[^0-9]/g, '')}` : '';
 
     const collaboratorName = apt.team_member_name || 'Collaborateur';
     const title = apt.service_name ? `Intervention : ${apt.service_name}` : (apt.title || 'Ordre de mission');
@@ -1363,16 +1331,12 @@ apiRouter.get('/appointments/:id/mission', async (req: Request, res: Response) =
             >
               📞 Appeler
             </a>
-            ${waClientLink ? `
-              <a
-                href="${waClientLink}"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition"
-              >
-                💬 WhatsApp
-              </a>
-            ` : ''}
+            <a
+              href="sms:${cleanClientPhone}"
+              class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition"
+            >
+              💬 Envoyer SMS
+            </a>
           </div>
         ` : ''}
       </div>
@@ -1507,53 +1471,6 @@ apiRouter.post('/settings/:key', async (req: Request, res: Response) => {
     const key = req.params.key as string;
     await setSetting(key, req.body);
     res.json({ success: true, key });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Contrôles WhatsApp
-apiRouter.get('/whatsapp/status', (_req: Request, res: Response) => {
-  res.json(getWhatsAppState());
-});
-
-apiRouter.post('/whatsapp/connect', async (req: Request, res: Response) => {
-  try {
-    if (req.body?.force) {
-      await resetWhatsAppSession();
-    } else {
-      await initWhatsAppClient();
-    }
-    res.json(getWhatsAppState());
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-apiRouter.post('/whatsapp/reset', async (_req: Request, res: Response) => {
-  try {
-    await resetWhatsAppSession();
-    res.json(getWhatsAppState());
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-apiRouter.post('/whatsapp/disconnect', async (_req: Request, res: Response) => {
-  try {
-    await disconnectWhatsApp();
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-apiRouter.post('/whatsapp/pairing-code', async (req: Request, res: Response) => {
-  try {
-    const { phoneNumber } = req.body;
-    if (!phoneNumber) return res.status(400).json({ error: 'Numéro de téléphone requis' });
-    const code = await requestPairingCode(phoneNumber);
-    res.json({ pairingCode: code });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

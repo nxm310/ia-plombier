@@ -24,7 +24,7 @@ import { useApp, getApiBaseUrl } from '../context/AppContext';
 import { Contact, Message, Memory, Appointment } from '../types';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
 
-function renderFormattedWhatsAppText(text?: string | null) {
+function renderFormattedText(text?: string | null) {
   if (!text || typeof text !== 'string') return null;
   try {
     const lines = text.split('\n');
@@ -455,7 +455,7 @@ export const Conversations: React.FC = () => {
         } w-full md:w-80 border-r border-slate-200 bg-white flex-col shrink-0`}
       >
         <div className="p-4 border-b border-slate-100 space-y-3">
-          <h2 className="font-bold text-slate-800 text-base">Conversations WhatsApp</h2>
+          <h2 className="font-bold text-slate-800 text-base">Messagerie Directe Client</h2>
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
@@ -652,7 +652,7 @@ export const Conversations: React.FC = () => {
                               </div>
                               <div className="min-w-0">
                                 <p className={`font-bold text-xs truncate ${isClient ? 'text-slate-800' : 'text-white'}`}>
-                                  {m.file_name || 'Document WhatsApp'}
+                                  {m.file_name || 'Document joint'}
                                 </p>
                                 <p className={`text-[10px] ${isClient ? 'text-slate-400' : 'text-white/80'}`}>
                                   <span className="font-semibold uppercase mr-1.5">{badge.label}</span>
@@ -678,7 +678,7 @@ export const Conversations: React.FC = () => {
                                 <span className="hidden sm:inline">Ouvrir</span>
                               </a>
                             ) : (
-                              <span className="text-[10px] opacity-75 italic shrink-0">WhatsApp</span>
+                              <span className="text-[10px] opacity-75 italic shrink-0">Direct</span>
                             )}
                           </div>
                         )}
@@ -690,7 +690,7 @@ export const Conversations: React.FC = () => {
                           if (parsedApt) {
                             return (
                               <div className="space-y-2.5">
-                                <div>{renderFormattedWhatsAppText(parsedApt.introText)}</div>
+                                <div>{renderFormattedText(parsedApt.introText)}</div>
 
                                 {/* Boutons d'ajout rapide cliquables style Agenda */}
                                 <div className="p-3 bg-white text-slate-800 rounded-xl shadow-xs border border-slate-200/90 space-y-2">
@@ -746,7 +746,7 @@ export const Conversations: React.FC = () => {
 
                                 {parsedApt.footerText && (
                                   <div className="text-[11px] opacity-90 pt-0.5">
-                                    {renderFormattedWhatsAppText(parsedApt.footerText)}
+                                    {renderFormattedText(parsedApt.footerText)}
                                   </div>
                                 )}
                               </div>
@@ -754,10 +754,10 @@ export const Conversations: React.FC = () => {
                           }
 
                           if (displayContent && (!m.transcription || displayContent !== m.transcription)) {
-                            return <div>{renderFormattedWhatsAppText(displayContent) || <p className="whitespace-pre-line">{displayContent}</p>}</div>;
+                            return <div>{renderFormattedText(displayContent) || <p className="whitespace-pre-line">{displayContent}</p>}</div>;
                           }
                           if (!hasAttachment && !isAudio && !m.transcription) {
-                            return <div>{renderFormattedWhatsAppText(m.content) || <p className="whitespace-pre-line">{m.content}</p>}</div>;
+                            return <div>{renderFormattedText(m.content) || <p className="whitespace-pre-line">{m.content}</p>}</div>;
                           }
                           return null;
                         })()}
@@ -889,7 +889,7 @@ export const Conversations: React.FC = () => {
                 {showAttachMenu && (
                   <div className="absolute bottom-12 left-0 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                      Envoyer sur WhatsApp
+                      Transmettre un document
                     </p>
                     <button
                       type="button"
@@ -975,7 +975,7 @@ export const Conversations: React.FC = () => {
                 type="text"
                 value={inputMessage}
                 onChange={e => setInputMessage(e.target.value)}
-                placeholder="Répondre manuellement au client sur WhatsApp..."
+                placeholder="Écrire un message au client..."
                 className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <button

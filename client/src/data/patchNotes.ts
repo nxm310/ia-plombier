@@ -23,15 +23,70 @@ export interface PatchVersion {
   }[];
 }
 
-export const CURRENT_PATCH_VERSION = '3.3.0';
+export const CURRENT_PATCH_VERSION = '3.4.0';
 
 export const PATCH_HISTORY: PatchVersion[] = [
+  {
+    version: '3.4.0',
+    codename: 'Hub PME : Agenda & CRM Découplé (Sortie de WhatsApp)',
+    date: '16 Septembre 2026',
+    highlight: 'Suppression intégrale de WhatsApp et de la bibliothèque Baileys. L\'application devient un Hub PME complet, autonome et centré sur l\'Agenda collaboratif, le CRM clients, les ordres de mission et l\'organisation d\'équipe.',
+    isLatest: true,
+    features: [
+      {
+        icon: '📅',
+        title: 'Prise de Rendez-vous Instantanée & Sans Friction',
+        desc: 'Enregistrement immédiat de vos interventions sans modale bloquante ni étape superflue. Vos rendez-vous sont planifiés et synchronisés en direct.',
+        badge: 'Agenda'
+      },
+      {
+        icon: '📲',
+        title: 'Export Calendrier Universel (Google & Apple)',
+        desc: 'Synchronisation immédiate en 1 clic vers Google Agenda (web direct) et Apple Calendrier / Outlook (.ics natif), accessible directement dans le tiroir d\'intervention.',
+        badge: 'Calendrier'
+      },
+      {
+        icon: '🛠️',
+        title: 'Ordres de Mission Collaborateurs avec SMS',
+        desc: 'Lien d\'ordre de mission direct avec itinéraire GPS (Waze, Maps), contact direct et notification SMS intégrée.',
+        badge: 'Missions'
+      },
+      {
+        icon: '⚡',
+        title: 'Allègement Drastique & Zéro Session Éphémère',
+        desc: 'Retrait complet de la dépendance Baileys et des QR codes. Vitesse d\'exécution maximale, zéro crash de socket et démarrage instantané.',
+        badge: 'Stabilité'
+      }
+    ],
+    improvements: [
+      {
+        icon: '🎨',
+        title: 'Identité Hub PME : Agenda & CRM',
+        desc: 'Interface unifiée et professionnelle, pensée pour le terrain, les chantiers et le bureau sur mobile comme sur desktop.'
+      },
+      {
+        icon: '👥',
+        title: 'Partage d\'Équipe Universel',
+        desc: 'Partage du lien d\'accès sécurisé par le système de partage natif ou copie presse-papier rapide.'
+      }
+    ],
+    fixes: [
+      {
+        title: 'Suppression des blocages de fenêtres contextuelles',
+        desc: 'Élimination des pop-ups externes lors de l\'enregistrement d\'un nouveau rendez-vous.'
+      },
+      {
+        title: 'Consolidation de la base de données',
+        desc: 'Découplage des tables messages et rendez-vous pour une réactivité optimale du planning.'
+      }
+    ]
+  },
   {
     version: '3.3.0',
     codename: 'Hub PME WhatsApp Direct & Retrait Intégral de l\'IA',
     date: '16 Septembre 2026',
     highlight: 'Pivot de l\'application vers un Hub WhatsApp Direct et Agenda Collaborateur pur : suppression totale de l\'intelligence artificielle (Gemini, copilotes, répondeurs auto) pour un contrôle 100% humain, direct et ultra-fiable.',
-    isLatest: true,
+    isLatest: false,
     features: [
       {
         icon: '📱',

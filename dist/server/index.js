@@ -16,8 +16,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { initDatabase } from './db/database.js';
 import { apiRouter } from './routes/api.js';
-import { initWhatsAppClient, setWhatsAppBroadcast, getWhatsAppState } from './whatsapp/client.js';
-import { startReminderCron } from './services/reminders.js';
+import { setBroadcastHandler } from './services/websocket.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -33,10 +32,9 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 const connectedSockets = new Set();
 wss.on('connection', (ws) => {
     connectedSockets.add(ws);
-    // Envoi de l'état initial WhatsApp à la connexion
     ws.send(JSON.stringify({
-        event: 'whatsapp_status',
-        data: getWhatsAppState()
+        event: 'system_status',
+        data: { status: 'ready', serverTime: new Date().toISOString() }
     }));
     ws.on('close', () => {
         connectedSockets.delete(ws);
@@ -47,7 +45,7 @@ wss.on('connection', (ws) => {
     });
 });
 // Diffuseur d'événements vers tous les dashboards connectés
-setWhatsAppBroadcast((event, data) => {
+setBroadcastHandler((event, data) => {
     const payload = JSON.stringify({ event, data });
     for (const client of connectedSockets) {
         if (client.readyState === WebSocket.OPEN) {
@@ -57,16 +55,10 @@ setWhatsAppBroadcast((event, data) => {
 });
 // Endpoint de santé pour sondes Cloud (Render / Railway / Docker healthchecks)
 app.get('/api/health', (_req, res) => {
-    const wa = getWhatsAppState();
     res.json({
         status: 'ok',
         uptime: Math.round(process.uptime()),
         timestamp: new Date().toISOString(),
-        whatsapp: {
-            status: wa.status,
-            phoneNumber: wa.phoneNumber,
-            lastConnectedAt: wa.lastConnectedAt
-        },
         storage: {
             dataDir: DATA_DIR,
             uploadsDir: UPLOADS_DIR
@@ -103,13 +95,6 @@ async function start() {
             console.log(`📡 WebSocket disponible sur ws://${HOST}:${PORT}/ws`);
             console.log(`📁 Dossier de données persistant : ${DATA_DIR}`);
             console.log(`====================================================`);
-        });
-        // Démarrage du service de rappels automatiques
-        startReminderCron(15);
-        // Initialisation du client WhatsApp (génère le QR code prêt à être scanné)
-        console.log('[Serveur] Démarrage du client WhatsApp Baileys...');
-        initWhatsAppClient().catch(err => {
-            console.error('[Serveur] Erreur au démarrage WhatsApp:', err);
         });
     }
     catch (err) {

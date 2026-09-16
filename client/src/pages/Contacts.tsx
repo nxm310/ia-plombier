@@ -161,7 +161,7 @@ export const Contacts: React.FC = () => {
                     }}
                     className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" /> Ouvrir Chat WhatsApp
+                    <MessageSquare className="w-3.5 h-3.5" /> Ouvrir les échanges
                   </button>
                 </div>
               </div>

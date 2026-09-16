@@ -20,9 +20,7 @@ export default {
           800: '#166534',
           900: '#14532d',
           950: '#052e16',
-        },
-        whatsapp: '#25D366',
-        whatsappDark: '#128C7E',
+        }
       }
     },
   },

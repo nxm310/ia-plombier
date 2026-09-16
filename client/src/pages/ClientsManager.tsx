@@ -23,7 +23,7 @@ import { useApp } from '../context/AppContext';
 import { Contact, Memory, Appointment, Message } from '../types';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
 import { subscribeToContacts, saveCloudContact, deleteCloudContact, getTeamId } from '../services/cloudSync';
-import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
+import { formatPhoneNumber, handlePhoneInputChange } from '../utils/phone';
 
 export const ClientsManager: React.FC = () => {
   const { openConversation, setSelectedContactId, setActiveTab, triggerRefresh, refreshAll } = useApp();
@@ -88,7 +88,7 @@ export const ClientsManager: React.FC = () => {
       .map(t => t.trim())
       .filter(Boolean);
 
-    const formattedPhone = formatWhatsAppPhone(editFormPhone.trim()) || editingContact.phone_number;
+    const formattedPhone = formatPhoneNumber(editFormPhone.trim()) || editingContact.phone_number;
 
     const updated: Contact = {
       ...editingContact,
@@ -240,7 +240,7 @@ export const ClientsManager: React.FC = () => {
       .map(t => t.trim())
       .filter(Boolean);
 
-    const formattedPhone = formatWhatsAppPhone(formPhone.trim());
+    const formattedPhone = formatPhoneNumber(formPhone.trim());
 
     const newContact: Contact = {
       id: Date.now(),
@@ -302,7 +302,7 @@ export const ClientsManager: React.FC = () => {
       .map(t => t.trim())
       .filter(Boolean);
 
-    const formattedPhone = formatWhatsAppPhone(editPhone.trim()) || selectedContact.phone_number;
+    const formattedPhone = formatPhoneNumber(editPhone.trim()) || selectedContact.phone_number;
 
     const updated: Contact = {
       ...selectedContact,
@@ -637,7 +637,7 @@ export const ClientsManager: React.FC = () => {
                 onClick={() => openConversation(selectedContact.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition cursor-pointer"
               >
-                <MessageSquare className="w-3.5 h-3.5" /> Ouvrir Chat WhatsApp
+                <MessageSquare className="w-3.5 h-3.5" /> Ouvrir les échanges
               </button>
 
               <button
@@ -710,12 +710,12 @@ export const ClientsManager: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block font-medium text-slate-700 mb-1">Téléphone WhatsApp *</label>
+                          <label className="block font-medium text-slate-700 mb-1">Numéro de téléphone *</label>
                           <input
                             type="tel"
                             value={editPhone}
                             onChange={e => setEditPhone(handlePhoneInputChange(e.target.value))}
-                            onBlur={e => setEditPhone(formatWhatsAppPhone(e.target.value))}
+                            onBlur={e => setEditPhone(formatPhoneNumber(e.target.value))}
                             required
                             className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono"
                             placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
@@ -807,7 +807,7 @@ export const ClientsManager: React.FC = () => {
                           <span className="font-semibold text-slate-800">{selectedContact.company || 'Non renseignée'}</span>
                         </div>
                         <div>
-                          <span className="text-slate-400 block mb-0.5">Téléphone WhatsApp :</span>
+                          <span className="text-slate-400 block mb-0.5">Numéro de téléphone :</span>
                           <span className="font-mono text-slate-800 font-medium">{selectedContact.phone_number}</span>
                         </div>
                         <div>
@@ -944,7 +944,7 @@ export const ClientsManager: React.FC = () => {
               {/* Tab 4: Messages */}
               {detailTab === 'messages' && (
                 <div className="space-y-3 text-xs">
-                  <h4 className="font-bold text-sm text-slate-800">Derniers Messages WhatsApp</h4>
+                  <h4 className="font-bold text-sm text-slate-800">Derniers Messages échangés</h4>
                   {messages.length === 0 ? (
                     <div className="p-8 text-center bg-slate-50 rounded-xl text-slate-400">
                       Aucun message archivé pour ce client.
@@ -1019,7 +1019,7 @@ export const ClientsManager: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">
-                    Numéro WhatsApp * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
+                    Numéro de téléphone * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
                   </label>
                   <input
                     type="tel"
@@ -1027,7 +1027,7 @@ export const ClientsManager: React.FC = () => {
                     placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
                     value={formPhone}
                     onChange={e => setFormPhone(handlePhoneInputChange(e.target.value))}
-                    onBlur={e => setFormPhone(formatWhatsAppPhone(e.target.value))}
+                    onBlur={e => setFormPhone(formatPhoneNumber(e.target.value))}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono text-xs"
                   />
                 </div>
@@ -1157,7 +1157,7 @@ export const ClientsManager: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">
-                    Numéro WhatsApp * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
+                    Numéro de téléphone * <span className="text-[10px] text-emerald-600 font-normal">(format auto +33...)</span>
                   </label>
                   <input
                     type="tel"
@@ -1165,7 +1165,7 @@ export const ClientsManager: React.FC = () => {
                     placeholder="Ex: 0323456776 ou +33 3 23 45 67 76"
                     value={editFormPhone}
                     onChange={e => setEditFormPhone(handlePhoneInputChange(e.target.value))}
-                    onBlur={e => setEditFormPhone(formatWhatsAppPhone(e.target.value))}
+                    onBlur={e => setEditFormPhone(formatPhoneNumber(e.target.value))}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono text-xs"
                   />
                 </div>

@@ -1,14 +1,3 @@
-export type WhatsAppStatus = 'disconnected' | 'connecting' | 'qr_ready' | 'connected';
-
-export interface WhatsAppState {
-  status: WhatsAppStatus;
-  qrCodeDataUrl: string | null;
-  pairingCode: string | null;
-  phoneNumber: string | null;
-  lastConnectedAt: string | null;
-  error: string | null;
-}
-
 export interface Contact {
   id: number;
   phone_number: string;
@@ -82,7 +71,7 @@ export interface Appointment {
   end_time: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   notes: string | null;
-  source: 'whatsapp_ai' | 'manual';
+  source: 'direct' | 'manual' | 'online';
   document_url?: string | null;
   document_name?: string | null;
   reminder_sent: number;
@@ -112,7 +101,6 @@ export interface DashboardStats {
   messagesToday: number;
   appointmentsToday: number;
   activeTeamMembers: number;
-  whatsapp: WhatsAppState;
 }
 
 export interface Service {
@@ -149,6 +137,5 @@ export interface IndustryPreset {
   company: CompanySettings;
   services: Omit<Service, 'id' | 'is_active'>[];
   teamMembers: Omit<TeamMember, 'id' | 'is_active' | 'created_at' | 'working_hours' | 'avatar'>[];
-  systemPrompt: string;
 }
 

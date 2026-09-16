@@ -65,11 +65,21 @@ export const TeamAccessBar: React.FC<TeamAccessBarProps> = ({ onTeamChanged }) =
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const shareViaWhatsApp = () => {
-    const text = encodeURIComponent(
-      `👋 Bonjour !\nVoici le lien d'accès direct à notre agenda d'équipe partagé en temps réel :\n👉 ${getShareUrl()}\n\n(Ouvre ce lien sur ton téléphone et clique sur "Ajouter à l'écran d'accueil" pour l'installer en 1 clic sans rien configurer).`
-    );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+  const shareInvite = async () => {
+    const text = `👋 Bonjour !\nVoici le lien d'accès direct à notre agenda d'équipe partagé en temps réel :\n👉 ${getShareUrl()}\n\n(Ouvre ce lien sur ton téléphone et clique sur "Ajouter à l'écran d'accueil" pour l'installer en 1 clic sans rien configurer).`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Accès Agenda Équipe',
+          text: text,
+          url: getShareUrl(),
+        });
+      } catch {
+        // Annulation ou non supporté
+      }
+    } else {
+      copyShareLink();
+    }
   };
 
   return (
@@ -95,12 +105,12 @@ export const TeamAccessBar: React.FC<TeamAccessBarProps> = ({ onTeamChanged }) =
             </button>
 
             <button
-              onClick={shareViaWhatsApp}
+              onClick={shareInvite}
               className="flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-white text-emerald-800 hover:bg-emerald-50 rounded-lg text-[11px] font-bold transition cursor-pointer shadow-xs"
-              title="Envoyer l'invitation sur WhatsApp"
+              title="Partager le lien d'accès à l'équipe"
             >
               <Share2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Inviter sur WhatsApp</span>
+              <span className="hidden sm:inline">Partager l'accès</span>
             </button>
 
             <button

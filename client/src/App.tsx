@@ -6,7 +6,6 @@ import { Appointments } from './pages/Appointments';
 import { ClientsManager } from './pages/ClientsManager';
 import { Team } from './pages/Team';
 import { Contacts } from './pages/Contacts';
-import { WhatsAppConnect } from './pages/WhatsAppConnect';
 import { Settings } from './pages/Settings';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 import { PatchNotesModal } from './components/PatchNotesModal';
@@ -30,7 +29,7 @@ export const App: React.FC = () => {
     openConversation,
     setConversationMobileView,
     lastIncomingMessage,
-    whatsappState
+    isBackendConnected
   } = useApp();
   const [toast, setToast] = useState<{ name: string; content: string; contactId: number } | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -71,8 +70,6 @@ export const App: React.FC = () => {
         return <Team />;
       case 'contacts':
         return <Contacts />;
-      case 'whatsapp':
-        return <WhatsAppConnect />;
       case 'settings':
         return <Settings />;
       default:
@@ -105,7 +102,7 @@ export const App: React.FC = () => {
               <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
                 <Briefcase className="w-3.5 h-3.5" />
               </div>
-              <span className="font-bold text-sm text-slate-900 truncate">Hub PME & WhatsApp</span>
+              <span className="font-bold text-sm text-slate-900 truncate">Hub PME</span>
             </div>
           </div>
 
@@ -119,26 +116,26 @@ export const App: React.FC = () => {
               <span>v{CURRENT_PATCH_VERSION}</span>
             </button>
 
-            {whatsappState.status === 'connected' ? (
+            {isBackendConnected ? (
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                24/7
+                Connecté
               </span>
             ) : (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                Non lié
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-50 text-slate-600 border border-slate-200">
+                <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                Autonome
               </span>
             )}
           </div>
         </header>
 
-        {/* Zone de contenu principale (avec marge basse adaptée sur mobile pour la bottom-bar) */}
+        {/* Zone de contenu principale */}
         <div className="flex-1 min-w-0 overflow-hidden pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] md:pb-0">
           {renderContent()}
         </div>
 
-        {/* Bottom Navigation Bar (Toujours accessible sur mobile pour naviguer sans blocage) */}
+        {/* Bottom Navigation Bar */}
         <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around z-30 shadow-lg">
             <button
               onClick={() => setActiveTab('dashboard')}
@@ -192,7 +189,7 @@ export const App: React.FC = () => {
             </button>
           </nav>
 
-        {/* Toast Notification temps réel pour les messages WhatsApp entrants */}
+        {/* Toast Notification temps réel pour les messages entrants */}
         {toast && (
           <div className="absolute bottom-20 md:bottom-6 right-4 sm:right-6 z-50 bg-white border border-slate-200 rounded-2xl p-4 shadow-xl max-w-sm flex items-start gap-3 animate-in fade-in slide-in-from-bottom-5">
             <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">

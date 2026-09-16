@@ -44,7 +44,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
-      {/* Container Principal Style Assistant WhatsApp */}
+      {/* Container Principal Style Hub PME */}
       <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden text-slate-800">
         
         {/* En-tête épuré et moderne */}
@@ -63,7 +63,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Découvrez les dernières améliorations apportées à votre Assistant WhatsApp.
+                Découvrez les dernières améliorations apportées à votre application Hub PME.
               </p>
             </div>
           </div>
