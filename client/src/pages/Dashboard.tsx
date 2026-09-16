@@ -27,11 +27,10 @@ export const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [contacts, setContacts] = useState<Contact[]>(() => getStoredContacts().slice(0, 5));
-  const [testMessage, setTestMessage] = useState('');
-  const [testSender, setTestSender] = useState('Jean Dupont');
-  const [testPhone, setTestPhone] = useState('+33 6 12 99 88 77');
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationResult, setSimulationResult] = useState<{ inbound: any; aiReply: string } | null>(null);
+  const [quickPhone, setQuickPhone] = useState('+33 6 12 99 88 77');
+  const [quickMessage, setQuickMessage] = useState('');
+  const [isSendingQuick, setIsSendingQuick] = useState(false);
+  const [quickSendSuccess, setQuickSendSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/stats')
@@ -59,31 +58,35 @@ export const Dashboard: React.FC = () => {
       });
   }, [triggerRefresh]);
 
-  const handleSimulate = async (e: React.FormEvent) => {
+  const handleQuickSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!testMessage.trim()) return;
+    if (!quickMessage.trim() || !quickPhone.trim()) return;
 
-    setIsSimulating(true);
-    setSimulationResult(null);
+    setIsSendingQuick(true);
+    setQuickSendSuccess(null);
 
     try {
-      const res = await fetch('/api/whatsapp/simulate-incoming', {
+      const res = await fetch('/api/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: testSender,
-          phoneNumber: testPhone,
-          message: testMessage
+          phoneNumber: quickPhone,
+          content: quickMessage.trim()
         })
       });
       const data = await res.json();
-      setSimulationResult(data);
-      setTestMessage('');
-      refreshAll();
-    } catch (err) {
-      console.error('Erreur simulation:', err);
+      if (data.success) {
+        setQuickSendSuccess(`Message transmis avec succès (${data.via || 'WhatsApp'}) !`);
+        setQuickMessage('');
+        refreshAll();
+        setTimeout(() => setQuickSendSuccess(null), 4000);
+      } else {
+        alert(data.error || 'Erreur lors de l\'envoi');
+      }
+    } catch (err: any) {
+      alert('Erreur d\'envoi : ' + err.message);
     } finally {
-      setIsSimulating(false);
+      setIsSendingQuick(false);
     }
   };
 
@@ -93,12 +96,12 @@ export const Dashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 p-4 sm:p-6 rounded-2xl text-white shadow-lg shadow-emerald-900/10">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-semibold uppercase tracking-wider mb-2">
-            <Sparkles className="w-3.5 h-3.5" />
-            Agent IA WhatsApp PME 24/7
+            <MessageSquare className="w-3.5 h-3.5" />
+            Hub WhatsApp & Agenda PME
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">Bienvenue sur votre Espace d'Automatisation</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Bienvenue sur votre Espace Entreprise</h2>
           <p className="text-emerald-100 text-sm mt-1 max-w-xl">
-            Votre assistante virtuelle accueille vos clients, répond aux questions, mémorise leurs besoins et prend des rendez-vous avec votre équipe en continu.
+            Pilotez vos échanges clients WhatsApp, planifiez vos interventions et synchronisez les plannings de votre équipe en temps réel.
           </p>
         </div>
 
@@ -163,70 +166,58 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Grid: Simulator + Upcoming Appointments */}
+      {/* Main Grid: Quick Send WhatsApp + Upcoming Appointments */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left: Test Simulator */}
+        {/* Left: Direct Quick Send WhatsApp */}
         <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                <Sparkles className="w-4 h-4" />
+                <Send className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-800">Simulateur WhatsApp IA Instantané</h3>
-                <p className="text-xs text-slate-500">Testez le comportement de l'agent 24/7 directement sans téléphone</p>
+                <h3 className="text-base font-bold text-slate-800">Envoi Rapide WhatsApp Direct</h3>
+                <p className="text-xs text-slate-500">Transmettez immédiatement un message ou une confirmation à un client</p>
               </div>
             </div>
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-medium">
-              Mode Démo & Test
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
+              WhatsApp Direct
             </span>
           </div>
 
-          <form onSubmit={handleSimulate} className="space-y-3 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nom du client</label>
-                <input
-                  type="text"
-                  value={testSender}
-                  onChange={e => setTestSender(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Jean Dupont"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Numéro WhatsApp</label>
-                <input
-                  type="text"
-                  value={testPhone}
-                  onChange={e => setTestPhone(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="+33 6 12 34 56 78"
-                />
-              </div>
+          <form onSubmit={handleQuickSend} className="space-y-3 pt-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Numéro WhatsApp du destinataire</label>
+              <input
+                type="text"
+                value={quickPhone}
+                onChange={e => setQuickPhone(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="+33 6 12 34 56 78"
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Message entrant du client</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Message à transmettre</label>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value={testMessage}
-                  onChange={e => setTestMessage(e.target.value)}
-                  placeholder="Ex: Bonjour, je voudrais un rendez-vous mardi prochain à 14h pour un devis..."
+                  value={quickMessage}
+                  onChange={e => setQuickMessage(e.target.value)}
+                  placeholder="Ex: Bonjour, nous confirmons votre créneau d'intervention pour demain..."
                   className="flex-1 px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 <button
                   type="submit"
-                  disabled={isSimulating || !testMessage.trim()}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm transition flex items-center gap-2 disabled:opacity-50"
+                  disabled={isSendingQuick || !quickMessage.trim()}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
-                  {isSimulating ? (
+                  {isSendingQuick ? (
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      Tester
+                      Envoyer
                     </>
                   )}
                 </button>
@@ -234,50 +225,37 @@ export const Dashboard: React.FC = () => {
             </div>
           </form>
 
-          {/* Preset Buttons for Quick Testing */}
+          {/* Modèles de messages rapides */}
           <div className="flex flex-wrap gap-2 pt-1">
-            <span className="text-xs text-slate-400 self-center mr-1">Exemples rapides :</span>
+            <span className="text-xs text-slate-400 self-center mr-1">Modèles express :</span>
             <button
               type="button"
-              onClick={() => setTestMessage("Bonjour, quels sont vos tarifs et services ?")}
-              className="text-xs px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+              onClick={() => setQuickMessage("Bonjour, nous venons de vous transmettre votre devis par message. Restant à votre disposition !")}
+              className="text-xs px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
             >
-              Tarifs & Services
+              📄 Devis envoyé
             </button>
             <button
               type="button"
-              onClick={() => setTestMessage("Je voudrais un rendez-vous avec Marc pour un devis mardi prochain à 14h")}
-              className="text-xs px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition"
+              onClick={() => setQuickMessage("Bonjour, notre technicien est en route vers votre adresse. À tout de suite !")}
+              className="text-xs px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition cursor-pointer"
             >
-              Prendre RDV avec Marc
+              🚗 En route
             </button>
             <button
               type="button"
-              onClick={() => setTestMessage("Mon budget est de 4500€ pour la rénovation informatique")}
-              className="text-xs px-2.5 py-1 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-800 transition"
+              onClick={() => setQuickMessage("Bonjour, votre intervention a été réalisée avec succès. Merci de votre confiance !")}
+              className="text-xs px-2.5 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-800 transition cursor-pointer"
             >
-              Mémoriser Budget & Projet
+              ✅ Fin d'intervention
             </button>
           </div>
 
-          {/* Simulation Output Preview */}
-          {simulationResult && (
-            <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-                <span>RÉSULTAT DE LA CONVERSATION</span>
-                <span className="text-emerald-600 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Réponse générée
-                </span>
-              </div>
-              <div className="space-y-2">
-                <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs text-slate-700">
-                  <span className="font-semibold text-slate-900">Client :</span> {simulationResult.inbound?.content}
-                </div>
-                <div className="p-3 bg-emerald-500 text-white rounded-lg text-xs leading-relaxed shadow-sm">
-                  <span className="font-semibold text-emerald-100">Assistante Clara (WhatsApp) :</span>
-                  <p className="mt-1 whitespace-pre-line">{simulationResult.aiReply}</p>
-                </div>
-              </div>
+          {/* Confirmation d'envoi direct */}
+          {quickSendSuccess && (
+            <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{quickSendSuccess}</span>
             </div>
           )}
         </div>
@@ -288,7 +266,7 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-base font-bold text-slate-800">Prochains Rendez-vous</h3>
-                <p className="text-xs text-slate-500">Planifiés par l'agent IA ou l'équipe</p>
+                <p className="text-xs text-slate-500">Planifiés dans l'agenda de l'équipe</p>
               </div>
               <button
                 onClick={() => setActiveTab('appointments')}

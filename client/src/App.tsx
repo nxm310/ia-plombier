@@ -8,7 +8,6 @@ import { Team } from './pages/Team';
 import { Contacts } from './pages/Contacts';
 import { WhatsAppConnect } from './pages/WhatsAppConnect';
 import { Settings } from './pages/Settings';
-import { Copilot } from './pages/Copilot';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 import { PatchNotesModal } from './components/PatchNotesModal';
 import { CURRENT_PATCH_VERSION } from './data/patchNotes';
@@ -20,7 +19,7 @@ import {
   LayoutDashboard,
   Calendar,
   UserCheck,
-  Bot,
+  Briefcase,
   Sparkles
 } from 'lucide-react';
 
@@ -62,8 +61,6 @@ export const App: React.FC = () => {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
-      case 'copilot':
-        return <Copilot />;
       case 'conversations':
         return <Conversations />;
       case 'appointments':
@@ -106,9 +103,9 @@ export const App: React.FC = () => {
             </button>
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
-                <Bot className="w-4 h-4" />
+                <Briefcase className="w-3.5 h-3.5" />
               </div>
-              <span className="font-bold text-sm text-slate-900 truncate">Assistant PME</span>
+              <span className="font-bold text-sm text-slate-900 truncate">Hub PME & WhatsApp</span>
             </div>
           </div>
 

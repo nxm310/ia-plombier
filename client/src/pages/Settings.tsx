@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Settings as SettingsIcon,
   Building,
-  Bot,
-  Key,
   Save,
   CheckCircle2,
   Sparkles,
@@ -26,10 +24,9 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { CompanySettings, AiSettings, Service, TeamMember, IndustryPresetSummary } from '../types';
+import { CompanySettings, Service, TeamMember, IndustryPresetSummary } from '../types';
 import { INDUSTRY_PRESETS, IndustryPreset, generateCustomTradeConfig } from '../data/industryPresets';
 import { formatWhatsAppPhone, handlePhoneInputChange } from '../utils/phone';
-import { checkGeminiApiKey, GeminiCheckResult } from '../services/geminiCheck';
 
 const DEFAULT_PRESET_SUMMARIES: IndustryPresetSummary[] = Object.values(INDUSTRY_PRESETS).map(p => ({
   id: p.id,
@@ -46,35 +43,7 @@ const DEFAULT_PRESET_SUMMARIES: IndustryPresetSummary[] = Object.values(INDUSTRY
 
 export const Settings: React.FC = () => {
   const { refreshAll } = useApp();
-  const [activeSubTab, setActiveSubTab] = useState<'company' | 'services' | 'team' | 'ai'>('company');
-
-  // État du check rapide API Gemini (Voyant Vert / Rouge)
-  const [geminiStatus, setGeminiStatus] = useState<GeminiCheckResult | null>(() => {
-    const cached = localStorage.getItem('pme_gemini_check_result');
-    if (cached) {
-      try { return JSON.parse(cached); } catch (e) {}
-    }
-    return null;
-  });
-  const [isCheckingGemini, setIsCheckingGemini] = useState(false);
-
-  const runGeminiCheck = async (keyOverride?: string) => {
-    setIsCheckingGemini(true);
-    try {
-      const key = keyOverride !== undefined ? keyOverride : (ai.geminiApiKey || '');
-      const res = await checkGeminiApiKey(key);
-      setGeminiStatus(res);
-      localStorage.setItem('pme_gemini_check_result', JSON.stringify(res));
-      if (res.ok) {
-        localStorage.setItem('pme_gemini_verified', 'true');
-      } else {
-        localStorage.removeItem('pme_gemini_verified');
-      }
-      return res;
-    } finally {
-      setIsCheckingGemini(false);
-    }
-  };
+  const [activeSubTab, setActiveSubTab] = useState<'company' | 'services' | 'team'>('company');
 
   // Company Settings
   const [company, setCompany] = useState<CompanySettings>({
@@ -85,17 +54,6 @@ export const Settings: React.FC = () => {
     address: 'Zone Artisanale des Métiers, 75012 Paris',
     website: 'https://artisan-plomberie-energies.fr',
     description: 'Entreprise artisanale qualifiée RGE & QualiBois / QualiPAC. Spécialistes certifiés de l\'installation et du dépannage de pompes à chaleur (PAC Air/Eau et Air/Air), pose et entretien de cuisinières à bois traditionnelles et poêles à granulés, ramonage certifié assurance et dépannage plomberie d\'urgence 24/7.'
-  });
-
-  // AI Settings
-  const [ai, setAi] = useState<AiSettings>({
-    provider: 'gemini',
-    model: 'gemini-2.5-flash',
-    geminiApiKey: '',
-    openaiApiKey: '',
-    systemPrompt: '',
-    autoReplyHours: 'always',
-    temperature: 0.7
   });
 
 
@@ -152,26 +110,7 @@ export const Settings: React.FC = () => {
         }
       });
 
-    // 2. Configuration IA
-    fetch('/api/settings/ai_config')
-      .then(res => {
-        if (!res.ok) throw new Error('API non dispo');
-        return res.json();
-      })
-      .then(data => {
-        if (data.provider) {
-          setAi(data);
-          localStorage.setItem('pme_ai_settings', JSON.stringify(data));
-        }
-      })
-      .catch(() => {
-        const saved = localStorage.getItem('pme_ai_settings');
-        if (saved) {
-          try { setAi(JSON.parse(saved)); } catch (e) {}
-        }
-      });
-
-    // 3. Prestations / Services
+    // 2. Prestations / Services
     fetch('/api/services')
       .then(res => {
         if (!res.ok) throw new Error('API non dispo');
@@ -285,25 +224,9 @@ export const Settings: React.FC = () => {
     triggerNotification('Profil entreprise mis à jour');
   };
 
-  // Enregistrer la configuration IA
-  const handleSaveAi = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await fetch('/api/settings/ai_config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ai)
-      });
-    } catch (err) {
-      console.log('Enregistrement local');
-    }
-    localStorage.setItem('pme_ai_settings', JSON.stringify(ai));
-    triggerNotification('Configuration IA mise à jour');
-  };
-
   // Appliquer un modèle sectoriel parmi les disponibles
   const handleApplyPreset = async (presetId: string, presetName: string) => {
-    if (!confirm(`Voulez-vous activer le modèle "${presetName}" ? Cela mettra à jour le profil de votre entreprise, vos interventions types avec leurs durées, vos postes métiers et le prompt IA.`)) {
+    if (!confirm(`Voulez-vous activer le modèle "${presetName}" ? Cela mettra à jour le profil de votre entreprise, vos interventions types avec leurs durées et vos postes collaborateurs.`)) {
       return;
     }
 
@@ -326,13 +249,6 @@ export const Settings: React.FC = () => {
       // Profil Entreprise
       setCompany(targetPreset.company);
       localStorage.setItem('pme_company_settings', JSON.stringify(targetPreset.company));
-
-      // Config IA
-      setAi(prev => {
-        const next = { ...prev, systemPrompt: targetPreset.systemPrompt };
-        localStorage.setItem('pme_ai_settings', JSON.stringify(next));
-        return next;
-      });
 
       // Prestations
       const newServices = targetPreset.services.map((s, idx) => ({
@@ -395,12 +311,6 @@ export const Settings: React.FC = () => {
     setCompany(customConfig.company);
     localStorage.setItem('pme_company_settings', JSON.stringify(customConfig.company));
 
-    setAi(prev => {
-      const next = { ...prev, systemPrompt: customConfig.systemPrompt };
-      localStorage.setItem('pme_ai_settings', JSON.stringify(next));
-      return next;
-    });
-
     const newServices = customConfig.services.map((s, idx) => ({
       id: idx + 1,
       name: s.name,
@@ -450,26 +360,6 @@ export const Settings: React.FC = () => {
     } catch (err) {
       console.error('Erreur clear services:', err);
     }
-  };
-
-  // Régénérer le prompt IA d'après l'activité saisie
-  const handleRegenerateAiPromptFromCompany = () => {
-    const prompt = `Tu es Clara, assistante d'accueil et coordinatrice d'interventions pour l'entreprise "${company.name || 'Notre entreprise'}", spécialisée en "${company.activity || 'Prestations & Services'}".
-
-Description de notre activité :
-${company.description || 'Prestations soignées et interventions professionnelles.'}
-
-Ton rôle :
-1. Accueillir chaleureusement et avec professionnalisme chaque client sur WhatsApp 24/7.
-2. Comprendre avec précision la demande du client liée à notre activité de ${company.activity || 'services'}.
-3. Poser des questions de cadrage adaptées pour qualifier le dossier (nature du besoin, urgence, contraintes d'accès).
-4. Inviter le client à envoyer des photos si cela peut aider à préparer le rendez-vous ou à établir le devis.
-5. Vérifier les disponibilités et proposer des créneaux de rendez-vous avec nos collaborateurs qualifiés.
-6. Rassurer le client sur nos engagements de qualité, de réactivité et de transparence tarifaire.
-7. Toujours rester polie, courtoise, réactive et concise pour une lecture fluide sur smartphone.`;
-
-    setAi({ ...ai, systemPrompt: prompt });
-    triggerNotification('Prompt IA adapté à votre activité actuelle');
   };
 
   // Ajouter une catégorie personnalisée
@@ -711,24 +601,6 @@ Ton rôle :
           <Users className="w-4 h-4" />
           👥 Postes & Métiers ({teamMembers.length})
         </button>
-
-        <button
-          onClick={() => setActiveSubTab('ai')}
-          className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap cursor-pointer ${
-            activeSubTab === 'ai'
-              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50 rounded-t-lg'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Bot className="w-4 h-4" />
-          <span>🤖 Configuration IA & Clés</span>
-          {geminiStatus?.ok && (
-            <span className="flex h-2 w-2 relative" title="API Gemini vérifiée et opérationnelle">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-          )}
-        </button>
       </div>
 
       {/* SUBTAB 1 : Profil Entreprise */}
@@ -821,7 +693,7 @@ Ton rôle :
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block font-bold text-slate-700">
-                Présentation détaillée & Qualifications (Injectée dans la mémoire de Clara IA)
+                Présentation détaillée & Qualifications de l'établissement
               </label>
               <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
                 Certifications RGE, QualiBois, QualiPAC
@@ -1233,167 +1105,6 @@ Ton rôle :
         </div>
       )}
 
-      {/* SUBTAB 4 : Configuration IA */}
-      {activeSubTab === 'ai' && (
-        <form onSubmit={handleSaveAi} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-bold text-slate-800 mb-1">Fournisseur d'IA (LLM)</label>
-              <select
-                value={ai.provider}
-                onChange={e => setAi({ ...ai, provider: e.target.value as any })}
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              >
-                <option value="gemini">Google Gemini (Ultra rapide & Recommandé)</option>
-                <option value="openai">OpenAI (GPT-4o, GPT-4o-mini)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-800 mb-1">Modèle d'IA</label>
-              <select
-                value={ai.model}
-                onChange={e => setAi({ ...ai, model: e.target.value })}
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              >
-                {ai.provider === 'gemini' ? (
-                  <>
-                    <option value="gemini-2.5-flash">gemini-2.5-flash (Rapide & Précis)</option>
-                    <option value="gemini-2.5-pro">gemini-2.5-pro (Raisonnement Complexe)</option>
-                    <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="gpt-4o-mini">gpt-4o-mini (Recommandé)</option>
-                    <option value="gpt-4o">gpt-4o</option>
-                  </>
-                )}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <h4 className="font-bold text-slate-800 flex items-center gap-1.5">
-              <Key className="w-4 h-4 text-amber-500" />
-              Clés d'API
-            </h4>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-medium text-slate-700">Clé Google Gemini API</label>
-                  {geminiStatus?.ok && (
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 shadow-xs">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      Voyant Vert (OK)
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    placeholder="AIzaSy..."
-                    value={ai.geminiApiKey || ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setAi({ ...ai, geminiApiKey: val });
-                      if (val.length > 25) {
-                        runGeminiCheck(val);
-                      }
-                    }}
-                    className="flex-1 px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono text-[11px] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => runGeminiCheck()}
-                    disabled={isCheckingGemini}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
-                    title="Tester la connexion à l'API Gemini"
-                  >
-                    <Sparkles className={`w-3.5 h-3.5 text-amber-400 ${isCheckingGemini ? 'animate-spin' : ''}`} />
-                    {isCheckingGemini ? 'Test...' : 'Vérifier'}
-                  </button>
-                </div>
-
-                {/* Voyant Vert / Rouge avec détail du statut */}
-                {geminiStatus ? (
-                  geminiStatus.ok ? (
-                    <div className="mt-2 flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-xs shadow-xs animate-in fade-in">
-                      <span className="relative flex h-3 w-3 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-bold leading-tight">🟢 Voyant Vert : API Gemini Opérationnelle</p>
-                        <p className="text-[11px] text-emerald-700 truncate">{geminiStatus.message}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs animate-in fade-in">
-                      <span className="inline-flex rounded-full h-3 w-3 bg-rose-500 shrink-0"></span>
-                      <div className="min-w-0">
-                        <p className="font-bold leading-tight">🔴 Voyant Rouge : Erreur Clé Gemini</p>
-                        <p className="text-[11px] text-rose-700 truncate">{geminiStatus.message}</p>
-                      </div>
-                    </div>
-                  )
-                ) : (
-                  <p className="text-[11px] text-slate-400 mt-1.5">
-                    Entrez votre clé Google AI Studio et cliquez sur « Vérifier » pour allumer le voyant vert.
-                  </p>
-                )}
-              </div>
-
-
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Clé OpenAI API (Optionnelle)</label>
-                <input
-                  type="password"
-                  placeholder="sk-..."
-                  value={ai.openaiApiKey || ''}
-                  onChange={e => setAi({ ...ai, openaiApiKey: e.target.value })}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono text-[11px] focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="block font-bold text-slate-800">Prompt Système Métier & Instructions de Clara</label>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleRegenerateAiPromptFromCompany}
-                  className="text-[11px] text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer"
-                  title="Génère un prompt sur-mesure pour Clara d'après le nom et l'activité de votre entreprise"
-                >
-                  <Wand2 className="w-3.5 h-3.5 text-indigo-600" />
-                  🪄 Adapter à mon activité ({company.activity || 'entreprise'})
-                </button>
-              </div>
-            </div>
-            <textarea
-              rows={9}
-              value={ai.systemPrompt}
-              onChange={e => setAi({ ...ai, systemPrompt: e.target.value })}
-              className="w-full p-3.5 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-emerald-500 leading-relaxed focus:outline-none"
-            ></textarea>
-          </div>
-
-
-          <div className="flex justify-end pt-2 border-t border-slate-100">
-            <button
-              type="submit"
-              className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-sm cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              Enregistrer la configuration IA
-            </button>
-          </div>
-        </form>
-      )}
-
       {/* MODAL : Ajouter / Modifier une Intervention */}
       {isServiceModalOpen && editingService && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -1694,7 +1405,7 @@ Ton rôle :
                   Catalogue de Modèles Métiers Prêts à l'Emploi
                 </h3>
                 <p className="text-slate-500 text-xs mt-0.5">
-                  Sélectionnez votre secteur : interventions types, durées réalistes, postes qualifiés et prompt Clara IA configurés en 1 clic.
+                  Sélectionnez votre secteur : interventions types, durées réalistes et postes qualifiés configurés en 1 clic.
                 </p>
               </div>
               <button
@@ -1890,7 +1601,6 @@ Ton rôle :
                   <li>5 interventions clés avec durées réalistes adaptées à votre domaine</li>
                   <li>Vos catégories de prestations dédiées</li>
                   <li>Le rôle de votre premier artisan / collaborateur spécialisé</li>
-                  <li>Le prompt système de Clara IA pour qualifier vos prospects sur WhatsApp</li>
                 </ul>
               </div>
 

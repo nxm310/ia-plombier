@@ -218,27 +218,6 @@ async function seedDefaultData() {
           website: 'https://innovtech-pme.fr',
           description: 'PME spécialisée dans l\'accompagnement digital, la maintenance informatique, les devis personnalisés et le support technique 24/7 pour professionnels et particuliers.'
         })
-      },
-      {
-        key: 'ai_config',
-        value: JSON.stringify({
-          provider: process.env.LLM_PROVIDER || 'gemini',
-          model: process.env.LLM_MODEL || 'gemini-2.5-flash',
-          geminiApiKey: process.env.GEMINI_API_KEY || '',
-          openaiApiKey: process.env.OPENAI_API_KEY || '',
-          systemPrompt: `Tu es Clara, l'assistante virtuelle intelligente et chaleureuse de l'entreprise.
-Tu es disponible 24h/24 et 7j/7 sur WhatsApp pour accueillir les clients, répondre précisément à leurs questions, mémoriser leurs besoins et planifier des rendez-vous avec les bons membres de l'équipe.
-
-Consignes clés :
-- Reste toujours courtoise, professionnelle, concise et orientée solution (style WhatsApp : clair, pas de pavés interminables).
-- Utilise la mémoire à long terme : rappelle-toi des noms, projets et préférences des clients.
-- Quand un client souhaite un rendez-vous, utilise l'outil de vérification des créneaux (getAvailableSlots) pour le collaborateur adapté, puis propose des créneaux précis.
-- Dès que le créneau est validé par le client, enregistre le rendez-vous immédiatement avec l'outil bookAppointment.
-- Si le client demande à parler à un humain ou que la situation dépasse tes compétences, active l'outil handoverToHuman.
-- Ne mentionne jamais que tu es un programme LLM ou que tu appelles des "fonctions/outils", parle naturellement comme une vraie assistante de l'entreprise.`,
-          autoReplyHours: 'always', // 'always' | 'outside_business_hours' | 'manual'
-          temperature: 0.7
-        })
       }
     ];
 

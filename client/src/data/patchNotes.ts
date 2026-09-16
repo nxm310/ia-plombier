@@ -23,15 +23,64 @@ export interface PatchVersion {
   }[];
 }
 
-export const CURRENT_PATCH_VERSION = '3.2.1';
+export const CURRENT_PATCH_VERSION = '3.3.0';
 
 export const PATCH_HISTORY: PatchVersion[] = [
+  {
+    version: '3.3.0',
+    codename: 'Hub PME WhatsApp Direct & Retrait Intégral de l\'IA',
+    date: '16 Septembre 2026',
+    highlight: 'Pivot de l\'application vers un Hub WhatsApp Direct et Agenda Collaborateur pur : suppression totale de l\'intelligence artificielle (Gemini, copilotes, répondeurs auto) pour un contrôle 100% humain, direct et ultra-fiable.',
+    isLatest: true,
+    features: [
+      {
+        icon: '📱',
+        title: 'Messagerie WhatsApp 100% Directe & Humaine',
+        desc: 'Tous les messages entrants arrivent en temps réel dans Conversations Live sans aucune interférence d\'agent automatique. Réponses immédiates sous la signature de votre entreprise.',
+        badge: 'Direct'
+      },
+      {
+        icon: '📋',
+        title: 'Fiches Techniques & Notes Clients Dédiées',
+        desc: 'Remplacement de la mémoire IA par une gestion claire et directe des notes clients, accès chantiers, consignes et historiques d\'interventions.',
+        badge: 'CRM'
+      },
+      {
+        icon: '⚡',
+        title: 'Application Allégée & Zéro Clé API Requise',
+        desc: 'Suppression complète du SDK Google Gemini, du copilote gérant et des configurations de modèles. L\'application fonctionne immédiatement sans clé d\'API ni coût d\'inférence.',
+        badge: 'Performance'
+      }
+    ],
+    improvements: [
+      {
+        icon: '💼',
+        title: 'Interface Unifiée Hub PME',
+        desc: 'Nouvelle identité visuelle professionnelle sans badges d\'agents IA : focus sur l\'agenda, la gestion d\'équipe et la satisfaction client.',
+      },
+      {
+        icon: '🚀',
+        title: 'Envoi Rapide WhatsApp Direct',
+        desc: 'Nouveau module d\'envoi rapide WhatsApp avec modèles de messages préformatés sur le tableau de bord.',
+      }
+    ],
+    fixes: [
+      {
+        title: 'Suppression de toutes les bascules IA',
+        desc: 'Retrait des boutons IA Active / Humain dans les conversations, contacts et gestionnaire CRM.',
+      },
+      {
+        title: 'Élimination des erreurs de quota ou de clé API',
+        desc: 'Plus aucun risque de blocage ou d\'erreur liée aux clés Google AI Studio ou OpenAI.',
+      }
+    ]
+  },
   {
     version: '3.2.1',
     codename: 'Rétablissement de l\'Onglet Conversations Live & Navigation Mobile Fluide',
     date: '16 Septembre 2026',
     highlight: 'Rétablissement complet de l\'onglet Conversations Live : barre de navigation permanente sur smartphone, sélection automatique sécurisée des contacts sans blocage et bouton de retour systématique',
-    isLatest: true,
+    isLatest: false,
     features: [
       {
         icon: '💬',

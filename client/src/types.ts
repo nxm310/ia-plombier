@@ -43,14 +43,6 @@ export interface Message {
   timestamp: string;
 }
 
-export interface CopilotMessage {
-  id: number;
-  role: 'user' | 'assistant';
-  content: string;
-  action_data?: string | null;
-  timestamp: string;
-}
-
 export interface Memory {
   id: number;
   contact_id: number;
@@ -113,16 +105,6 @@ export interface CompanySettings {
   address: string;
   website: string;
   description: string;
-}
-
-export interface AiSettings {
-  provider: 'gemini' | 'openai';
-  model: string;
-  geminiApiKey?: string;
-  openaiApiKey?: string;
-  systemPrompt: string;
-  autoReplyHours: string;
-  temperature: number;
 }
 
 export interface DashboardStats {

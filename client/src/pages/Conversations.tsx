@@ -1,13 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Search,
-  Bot,
   User,
   Send,
-  Sparkles,
-  ToggleLeft,
-  ToggleRight,
-  Brain,
   Calendar,
   Phone,
   Clock,
@@ -387,22 +382,6 @@ export const Conversations: React.FC = () => {
     }
   }, [currentContact, mobileView]);
 
-  // Basculer l'activation de l'IA pour ce contact
-  const toggleAi = async () => {
-    if (!currentContact) return;
-    const newStatus = currentContact.ai_enabled === 1 ? 0 : 1;
-    try {
-      await fetch(`/api/contacts/${currentContact.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ai_enabled: newStatus })
-      });
-      refreshAll();
-    } catch (err) {
-      console.error('Erreur toggle IA:', err);
-    }
-  };
-
   // Envoi d'un message manuel
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -526,13 +505,6 @@ export const Conversations: React.FC = () => {
                     <p className="text-[11px] text-slate-500 truncate mt-0.5">
                       {contact.last_message || 'Nouvelle conversation'}
                     </p>
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-medium ${
-                        contact.ai_enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {contact.ai_enabled ? '🤖 IA Active' : '👤 Humain'}
-                      </span>
-                    </div>
                   </div>
                 </button>
               );
@@ -572,34 +544,12 @@ export const Conversations: React.FC = () => {
                 </div>
               </div>
 
-              {/* Bouton de Prise de main humaine + Toggle Fiche Mobile */}
+              {/* Bouton pour afficher la fiche client en tiroir sur mobile / tablette */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  onClick={toggleAi}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition ${
-                    currentContact.ai_enabled
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                      : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                  }`}
-                >
-                  {currentContact.ai_enabled ? (
-                    <>
-                      <ToggleRight className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="hidden sm:inline">IA 24/7 Active</span>
-                    </>
-                  ) : (
-                    <>
-                      <ToggleLeft className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span className="hidden sm:inline">IA Suspendue</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Bouton pour afficher la fiche client en tiroir sur mobile / tablette */}
                 <button
                   onClick={() => setShowMobileDrawer(!showMobileDrawer)}
                   className="xl:hidden p-2 text-slate-500 hover:text-emerald-700 hover:bg-slate-100 rounded-xl transition"
-                  title="Voir fiche client et mémoire"
+                  title="Voir fiche client et notes"
                 >
                   <Info className="w-4 h-4" />
                 </button>
@@ -615,7 +565,6 @@ export const Conversations: React.FC = () => {
               ) : (
                 messages.map((m) => {
                   const isClient = m.direction === 'inbound';
-                  const isAi = m.sender_type === 'ai';
                   const isAudio = m.media_type === 'audio' || Boolean(m.file_name?.match(/\.(ogg|mp3|m4a|wav)$/));
                   const hasAttachment = !isAudio && Boolean(m.file_name || m.media_url || (m.content && m.content.includes('[📎 ')));
                   const badge = getFileBadge(m.file_name, m.media_type);
@@ -635,13 +584,9 @@ export const Conversations: React.FC = () => {
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-1 px-1">
                         {isClient ? (
                           <span>Client</span>
-                        ) : isAi ? (
-                          <span className="text-emerald-600 font-medium flex items-center gap-1">
-                            <Bot className="w-3 h-3" /> Clara (IA 24/7)
-                          </span>
                         ) : (
                           <span className="text-blue-600 font-medium flex items-center gap-1">
-                            <User className="w-3 h-3" /> Vous / Collaborateur
+                            <User className="w-3 h-3" /> Vous / Entreprise
                           </span>
                         )}
                         <span>•</span>
@@ -652,8 +597,6 @@ export const Conversations: React.FC = () => {
                         className={`max-w-[85%] sm:max-w-lg p-3 sm:p-3.5 rounded-2xl text-xs leading-relaxed shadow-xs ${
                           isClient
                             ? 'bg-white text-slate-800 rounded-tl-none border border-slate-200'
-                            : isAi
-                            ? 'bg-emerald-600 text-white rounded-tr-none'
                             : 'bg-blue-600 text-white rounded-tr-none'
                         }`}
                       >
@@ -682,16 +625,15 @@ export const Conversations: React.FC = () => {
                           </div>
                         )}
 
-                        {/* Retranscription mot à mot de Clara IA */}
+                        {/* Retranscription du message vocal */}
                         {m.transcription && (
                           <div className={`mb-2 p-2.5 rounded-xl border text-xs leading-relaxed ${
                             isClient
-                              ? 'bg-emerald-50/70 border-emerald-200 text-slate-800'
+                              ? 'bg-slate-50 border-slate-200 text-slate-800'
                               : 'bg-white/15 border-white/20 text-white'
                           }`}>
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 uppercase mb-1">
-                              <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
-                              <span>Retranscrit par Clara IA</span>
+                            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">
+                              <span>Transcription</span>
                             </div>
                             <p className="italic">"{m.transcription}"</p>
                           </div>
@@ -1094,23 +1036,23 @@ export const Conversations: React.FC = () => {
             </div>
           </div>
 
-          {/* Mémoire IA Client */}
+          {/* Notes & Fiche Client */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
-                <Brain className="w-4 h-4 text-emerald-600" />
-                <span>Mémoire IA ({memories.length})</span>
+                <FileText className="w-4 h-4 text-blue-600" />
+                <span>Notes & Fiche Client ({memories.length})</span>
               </div>
               <button
                 onClick={() => setShowAddMemory(!showAddMemory)}
-                className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1"
+                className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
               >
                 <Plus className="w-3.5 h-3.5" /> Ajouter
               </button>
             </div>
 
             {showAddMemory && (
-              <form onSubmit={handleAddMemory} className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2 mb-3 text-xs">
+              <form onSubmit={handleAddMemory} className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2 mb-3 text-xs">
                 <select
                   value={newMemoryCategory}
                   onChange={e => setNewMemoryCategory(e.target.value)}
@@ -1124,14 +1066,14 @@ export const Conversations: React.FC = () => {
                 </select>
                 <input
                   type="text"
-                  placeholder="Clé (ex: budget_max)"
+                  placeholder="Clé (ex: budget_max, accès digicode...)"
                   value={newMemoryKey}
                   onChange={e => setNewMemoryKey(e.target.value)}
                   className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-xs"
                 />
                 <input
                   type="text"
-                  placeholder="Valeur (ex: 5000€ HT)"
+                  placeholder="Valeur (ex: 5000€ HT, Code porte 48A9...)"
                   value={newMemoryValue}
                   onChange={e => setNewMemoryValue(e.target.value)}
                   className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-xs"
@@ -1146,7 +1088,7 @@ export const Conversations: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-2.5 py-1 bg-emerald-600 text-white rounded text-[11px] font-medium"
+                    className="px-2.5 py-1 bg-blue-600 text-white rounded text-[11px] font-medium"
                   >
                     Enregistrer
                   </button>
@@ -1156,7 +1098,7 @@ export const Conversations: React.FC = () => {
 
             {memories.length === 0 ? (
               <p className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-xl">
-                L'IA n'a pas encore mémorisé de faits spécifiques sur ce client.
+                Aucune note ou préférence enregistrée pour ce client.
               </p>
             ) : (
               <div className="space-y-2">

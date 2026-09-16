@@ -30,9 +30,7 @@ import {
   getDashboardStats,
   getOrCreateContact,
   createContactManually,
-  deleteContact,
-  getCopilotMessages,
-  clearCopilotMessages
+  deleteContact
 } from '../db/queries.js';
 import {
   INDUSTRY_PRESETS,
@@ -58,8 +56,6 @@ import {
   requestPairingCode,
   broadcast
 } from '../whatsapp/client.js';
-import { generateAgentReply } from '../ai/agent.js';
-import { chatWithCopilot } from '../ai/copilot.js';
 
 export const apiRouter = Router();
 
@@ -69,41 +65,6 @@ apiRouter.get('/stats', async (_req: Request, res: Response) => {
     const stats = await getDashboardStats();
     const waState = getWhatsAppState();
     res.json({ ...stats, whatsapp: waState });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// =========================================================================
-// Copilote IA pour le Gérant (Chat interne avec exécution d'actions)
-// =========================================================================
-apiRouter.get('/copilot/messages', async (_req: Request, res: Response) => {
-  try {
-    const messages = await getCopilotMessages();
-    res.json(messages);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-apiRouter.post('/copilot/chat', async (req: Request, res: Response) => {
-  try {
-    const { message } = req.body;
-    if (!message || !message.trim()) {
-      return res.status(400).json({ error: 'Le message ne peut pas être vide.' });
-    }
-    const result = await chatWithCopilot({ message: message.trim() });
-    res.json(result);
-  } catch (err: any) {
-    console.error('[API] Erreur Copilote Chat:', err);
-    res.status(500).json({ error: err.message || 'Erreur lors du traitement copilote' });
-  }
-});
-
-apiRouter.delete('/copilot/messages', async (_req: Request, res: Response) => {
-  try {
-    await clearCopilotMessages();
-    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -633,15 +594,6 @@ async function executeApplyPreset(preset: IndustryPreset, replaceServices: boole
       });
     }
   }
-
-  // 4. Mettre à jour le prompt système de Clara IA
-  const currentAi = (await getSetting('ai_config')) || {};
-  await setSetting('ai_config', {
-    ...currentAi,
-    provider: currentAi.provider || 'gemini',
-    model: currentAi.model || 'gemini-2.5-flash',
-    systemPrompt: preset.systemPrompt
-  });
 }
 
 // Appliquer un modèle sectoriel existant
@@ -1539,38 +1491,6 @@ apiRouter.delete('/appointments/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Test rapide de la clé Google Gemini API
-apiRouter.post('/settings/test-gemini', async (req: Request, res: Response) => {
-  try {
-    let key = req.body?.apiKey;
-    if (!key) {
-      const aiConfig: any = await getSetting('ai_config');
-      key = aiConfig?.geminiApiKey || process.env.GEMINI_API_KEY;
-    }
-    if (!key || !key.trim()) {
-      return res.status(400).json({ ok: false, message: 'Aucune clé API Gemini fournie ou configurée.' });
-    }
-
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(key.trim());
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent('Réponds uniquement: OK');
-    const reply = result.response.text();
-
-    res.json({
-      ok: true,
-      message: 'API Gemini 2.5 Flash connectée avec succès !',
-      model: 'gemini-2.5-flash',
-      response: reply.trim()
-    });
-  } catch (err: any) {
-    res.status(400).json({
-      ok: false,
-      message: err.message || 'Erreur lors du test de la clé Gemini'
-    });
-  }
-});
-
 // Paramètres
 apiRouter.get('/settings/:key', async (req: Request, res: Response) => {
   try {
@@ -1634,37 +1554,6 @@ apiRouter.post('/whatsapp/pairing-code', async (req: Request, res: Response) => 
     if (!phoneNumber) return res.status(400).json({ error: 'Numéro de téléphone requis' });
     const code = await requestPairingCode(phoneNumber);
     res.json({ pairingCode: code });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Simulation de message entrant pour tests et démos immédiats sans téléphone sous la main
-apiRouter.post('/whatsapp/simulate-incoming', async (req: Request, res: Response) => {
-  try {
-    const { phoneNumber = '+33699887766', name = 'Client Test', message } = req.body;
-    if (!message) return res.status(400).json({ error: 'Message requis' });
-
-    const contact = await getOrCreateContact(phoneNumber, name);
-    const savedInbound = await saveMessage(contact.id, 'inbound', 'client', message);
-
-    let aiReplyText = '';
-    if (contact.ai_enabled === 1) {
-      aiReplyText = await generateAgentReply({
-        contact,
-        incomingText: message
-      });
-
-      if (aiReplyText) {
-        await saveMessage(contact.id, 'outbound', 'ai', aiReplyText);
-      }
-    }
-
-    res.json({
-      contact,
-      inbound: savedInbound,
-      aiReply: aiReplyText
-    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

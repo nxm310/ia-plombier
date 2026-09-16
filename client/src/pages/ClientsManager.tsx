@@ -9,14 +9,12 @@ import {
   Tag,
   MessageSquare,
   Calendar,
-  Brain,
+  FileText,
   Trash2,
   Edit2,
   CheckCircle2,
   X,
   ExternalLink,
-  Sparkles,
-  Bot,
   UserCheck,
   AlertCircle,
   Clock
@@ -360,30 +358,6 @@ export const ClientsManager: React.FC = () => {
     );
   };
 
-  const toggleAi = async (contact: Contact) => {
-    const newStatus = contact.ai_enabled === 1 ? 0 : 1;
-    const updated = { ...contact, ai_enabled: newStatus };
-
-    setContacts(prev => {
-      const next = prev.map(c => c.id === contact.id ? updated : c);
-      saveStoredContacts(next);
-      return next;
-    });
-
-    if (selectedContact?.id === contact.id) {
-      setSelectedContact(updated);
-    }
-    refreshAll();
-
-    // Sync cloud & API
-    saveCloudContact(updated).catch(() => {});
-    fetch(`/api/contacts/${contact.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ai_enabled: newStatus })
-    }).catch(err => console.warn('Mise à jour statut IA en local:', err));
-  };
-
   const handleAddMemory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedContact || !newMemoryKey || !newMemoryValue) return;
@@ -464,7 +438,7 @@ export const ClientsManager: React.FC = () => {
             </span>
           </div>
           <p className="text-slate-500 text-xs mt-1">
-            Visualisez vos prospects et clients, modifiez leurs coordonnées et explorez leur mémoire IA en un coup d'œil.
+            Visualisez vos prospects et clients, modifiez leurs coordonnées et consultez leurs fiches techniques en un coup d'œil.
           </p>
         </div>
 
@@ -608,14 +582,12 @@ export const ClientsManager: React.FC = () => {
 
               {/* Footer card */}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                  c.ai_enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                }`}>
-                  {c.ai_enabled ? '🤖 IA 24/7' : '👤 Humain'}
+                <span className="text-[11px] text-slate-400">
+                  {c.phone_number}
                 </span>
 
                 <span className="text-emerald-600 font-semibold group-hover:underline flex items-center gap-1 text-[11px]">
-                  Fiche 360° &rarr;
+                  Fiche Client &rarr;
                 </span>
               </div>
             </div>
@@ -679,19 +651,8 @@ export const ClientsManager: React.FC = () => {
               </button>
 
               <button
-                onClick={() => toggleAi(selectedContact)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold border transition ml-auto ${
-                  selectedContact.ai_enabled
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : 'bg-amber-50 text-amber-800 border-amber-300'
-                }`}
-              >
-                {selectedContact.ai_enabled ? '🤖 Auto-répondeur IA Actif' : '👤 Prise de main humaine'}
-              </button>
-
-              <button
                 onClick={() => handleDeleteClient(selectedContact.id)}
-                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition ml-auto"
                 title="Supprimer ce client"
               >
                 <Trash2 className="w-4 h-4" />
@@ -702,7 +663,7 @@ export const ClientsManager: React.FC = () => {
             <div className="flex border-b border-slate-200 px-6 bg-slate-50/50">
               {[
                 { id: 'info', label: 'Coordonnées & Profil' },
-                { id: 'memories', label: `Mémoire IA (${memories.length})` },
+                { id: 'memories', label: `Notes & Fiche (${memories.length})` },
                 { id: 'appointments', label: `Rendez-vous (${appointments.length})` },
                 { id: 'messages', label: `Historique (${messages.length})` }
               ].map(tab => (
@@ -871,14 +832,14 @@ export const ClientsManager: React.FC = () => {
                 <div className="space-y-4 text-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
-                      <Brain className="w-4 h-4 text-emerald-600" />
-                      <span>Ce que l'IA a retenu sur ce client</span>
+                      <FileText className="w-4 h-4 text-emerald-600" />
+                      <span>Notes & Fiche Technique Client</span>
                     </div>
                   </div>
 
                   {memories.length === 0 ? (
                     <div className="p-8 text-center bg-slate-50 rounded-xl text-slate-400">
-                      Aucun fait spécifique mémorisé pour ce client. L'agent IA l'enregistrera automatiquement lors de vos échanges.
+                      Aucune note spécifique pour ce client. Vous pouvez ajouter des consignes d'accès, besoins ou préférences.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -909,7 +870,7 @@ export const ClientsManager: React.FC = () => {
                   {/* Formulaire ajout mémoire */}
                   <form onSubmit={handleAddMemory} className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-3">
                     <span className="font-semibold text-emerald-900 flex items-center gap-1.5">
-                      <Plus className="w-3.5 h-3.5 text-emerald-600" /> Ajouter manuellement une information clé :
+                      <Plus className="w-3.5 h-3.5 text-emerald-600" /> Ajouter une note ou consigne technique :
                     </span>
                     <div className="grid grid-cols-3 gap-2">
                       <select
@@ -925,14 +886,14 @@ export const ClientsManager: React.FC = () => {
                       </select>
                       <input
                         type="text"
-                        placeholder="Clé (ex: budget_estime)"
+                        placeholder="Clé (ex: digicode, budget)"
                         value={newMemoryKey}
                         onChange={e => setNewMemoryKey(e.target.value)}
                         className="px-2 py-1.5 bg-white border border-slate-200 rounded text-xs"
                       />
                       <input
                         type="text"
-                        placeholder="Valeur (ex: 4500€ HT)"
+                        placeholder="Valeur (ex: Bât B - code 48A9)"
                         value={newMemoryValue}
                         onChange={e => setNewMemoryValue(e.target.value)}
                         className="px-2 py-1.5 bg-white border border-slate-200 rounded text-xs"
@@ -944,7 +905,7 @@ export const ClientsManager: React.FC = () => {
                         disabled={!newMemoryKey || !newMemoryValue}
                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold disabled:opacity-50"
                       >
-                        Mémoriser pour l'IA
+                        Enregistrer la note
                       </button>
                     </div>
                   </form>
@@ -1000,7 +961,7 @@ export const ClientsManager: React.FC = () => {
                           }`}
                         >
                           <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
-                            <span className="font-semibold">{m.sender_type === 'client' ? 'Client' : m.sender_type === 'ai' ? '🤖 Clara IA' : '👤 Humain'}</span>
+                            <span className="font-semibold">{m.sender_type === 'client' ? 'Client' : 'Entreprise'}</span>
                             <span>{new Date(m.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                           <p className="whitespace-pre-line text-xs">{m.content}</p>

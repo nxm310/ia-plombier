@@ -4,11 +4,8 @@ import {
   MessageSquare,
   Calendar,
   Users,
-  Brain,
   QrCode,
   Settings,
-  Sparkles,
-  Bot,
   UserCheck,
   Briefcase,
   X
@@ -27,13 +24,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
 
   const navItems = [
     { id: 'dashboard', label: 'Vue d\'ensemble', icon: LayoutDashboard },
-    { id: 'copilot', label: 'Copilote IA Gérant', icon: Sparkles, isHighlight: true },
     { id: 'conversations', label: 'Conversations Live', icon: MessageSquare },
     { id: 'appointments', label: 'Agenda Visuel', icon: Calendar },
     { id: 'clients', label: 'Clients & CRM', icon: UserCheck },
     { id: 'team', label: 'Équipe & Horaires', icon: Briefcase },
     { id: 'whatsapp', label: 'Connexion WhatsApp', icon: QrCode },
-    { id: 'settings', label: 'Paramètres IA & PME', icon: Settings },
+    { id: 'settings', label: 'Paramètres Entreprise & Métiers', icon: Settings },
   ];
 
   const getStatusBadge = () => {
@@ -90,12 +86,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
         <div className="p-5 border-b border-slate-100 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-200">
-                <Bot className="w-6 h-6" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-200">
+                <Briefcase className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="font-bold text-base text-slate-900 leading-tight">Assistant WA 24/7</h1>
-                <p className="text-xs text-slate-500 font-medium">Pour PME & Équipes</p>
+                <h1 className="font-bold text-base text-slate-900 leading-tight">Hub PME & WhatsApp</h1>
+                <p className="text-xs text-slate-500 font-medium">Gestion d'équipe & Agenda</p>
               </div>
             </div>
 
@@ -110,17 +106,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
 
           <div className="flex flex-col gap-1.5">
             {getStatusBadge()}
-            {localStorage.getItem('pme_gemini_verified') === 'true' ? (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                🟢 API Gemini OK
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-50 text-slate-500 border border-slate-200">
-                <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                ⚪ API Gemini en attente
-              </span>
-            )}
           </div>
         </div>
 
@@ -139,13 +124,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : item.isHighlight ? 'text-emerald-600' : 'text-slate-400'}`} />
+                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                 <span className="truncate flex-1 text-left">{item.label}</span>
-                {item.isHighlight && !isActive && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
-                    IA
-                  </span>
-                )}
               </button>
             );
           })}

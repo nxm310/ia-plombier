@@ -33,7 +33,7 @@ export interface IndustryPreset {
   };
   services: PresetService[];
   teamMembers: PresetTeamMember[];
-  systemPrompt: string;
+  systemPrompt?: string;
 }
 
 export const INDUSTRY_PRESETS: Record<string, IndustryPreset> = {

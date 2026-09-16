@@ -18,8 +18,6 @@ import {
   getMessageByWhatsAppId,
   normalizePhone
 } from '../db/queries.js';
-import { generateAgentReply } from '../ai/agent.js';
-import { transcribeAudio } from '../ai/transcribe.js';
 
 export type WhatsAppStatus = 'disconnected' | 'connecting' | 'qr_ready' | 'connected';
 
@@ -309,9 +307,7 @@ async function processMessageMedia(
         fs.writeFileSync(localFilePath, audioBuffer);
         mediaUrl = `/uploads/${savedFileName}`;
 
-        console.log(`[WhatsApp] 🎙️ Retranscription IA du message vocal (${audioBuffer.length} octets)...`);
-        transcription = await transcribeAudio(audioBuffer, audio.mimetype || 'audio/ogg');
-        console.log(`[WhatsApp] 🎙️ Transcription obtenue : "${transcription}"`);
+        console.log(`[WhatsApp] 🎙️ Message vocal sauvegardé avec succès (${audioBuffer.length} octets).`);
       } catch (err) {
         console.error('[WhatsApp] Erreur traitement audio vocal:', err);
       }
@@ -445,40 +441,6 @@ async function processMessageMedia(
             contact,
             message: savedInbound
           });
-
-          const currentContact = await getContactById(contact.id);
-          if (currentContact && currentContact.ai_enabled === 1) {
-            const incomingForAi = mediaInfo.transcription || messageText;
-            console.log(`[WhatsApp] Traitement IA du message de ${contact.phone_number}: "${incomingForAi}"`);
-
-            const aiReply = await generateAgentReply({
-              contact: currentContact,
-              incomingText: incomingForAi
-            });
-
-            if (aiReply && aiReply.trim()) {
-              const sent = await sock?.sendMessage(remoteJid, { text: aiReply });
-              if (sent?.key?.id && sent.message) {
-                cacheSentMessage(sent.key.id, sent.message);
-              }
-
-              const savedOutbound = await saveMessage(
-                contact.id,
-                'outbound',
-                'ai',
-                aiReply,
-                sent?.key?.id || undefined,
-                'sent'
-              );
-
-              broadcast('new_message', {
-                contact: currentContact,
-                message: savedOutbound
-              });
-            }
-          } else {
-            console.log(`[WhatsApp] IA en pause pour ${contact.phone_number} (Prise de main humaine)`);
-          }
         } catch (err) {
           console.error('[WhatsApp] Erreur lors du traitement du message entrant:', err);
         }

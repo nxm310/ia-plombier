@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Brain,
+  FileText,
   Search,
   User,
   Phone,
   MessageSquare,
-  Sparkles,
   Calendar,
-  ToggleLeft,
-  ToggleRight,
   Plus,
   Trash2
 } from 'lucide-react';
@@ -45,21 +42,6 @@ export const Contacts: React.FC = () => {
       .then(data => setMemories(data))
       .catch(err => console.error('Erreur memories:', err));
   }, [selectedContact, triggerRefresh]);
-
-  const toggleAi = async (contact: Contact) => {
-    const newStatus = contact.ai_enabled === 1 ? 0 : 1;
-    try {
-      await fetch(`/api/contacts/${contact.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ai_enabled: newStatus })
-      });
-      refreshAll();
-      setSelectedContact(prev => prev && prev.id === contact.id ? { ...prev, ai_enabled: newStatus } : prev);
-    } catch (err) {
-      console.error('Erreur toggle AI:', err);
-    }
-  };
 
   const handleAddMemory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,9 +83,9 @@ export const Contacts: React.FC = () => {
     <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-6 overflow-y-auto h-full">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Mémoire & Fiches Clients (CRM)</h2>
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Fiches Clients & Coordonnées (CRM)</h2>
         <p className="text-slate-500 text-xs mt-1">
-          L'agent IA extrait et conserve en continu les faits importants (budget, projet, préférences) pour chaque client.
+          Consultez et complétez les fiches de vos clients, notes techniques, préférences et historique des échanges.
         </p>
       </div>
 
@@ -118,7 +100,7 @@ export const Contacts: React.FC = () => {
                 placeholder="Rechercher par nom ou numéro..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500"
+                className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -134,7 +116,7 @@ export const Contacts: React.FC = () => {
                     key={c.id}
                     onClick={() => setSelectedContact(c)}
                     className={`w-full p-4 text-left flex items-center justify-between transition ${
-                      isSelected ? 'bg-emerald-50/70 border-l-4 border-emerald-500' : 'hover:bg-slate-50'
+                      isSelected ? 'bg-blue-50/70 border-l-4 border-blue-600' : 'hover:bg-slate-50'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -146,12 +128,6 @@ export const Contacts: React.FC = () => {
                         <p className="text-[11px] text-slate-500">{c.phone_number}</p>
                       </div>
                     </div>
-
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                      c.ai_enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {c.ai_enabled ? 'IA Active' : 'Humain'}
-                    </span>
                   </button>
                 );
               })
@@ -166,7 +142,7 @@ export const Contacts: React.FC = () => {
               {/* Header Contact */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-base">
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-base">
                     {selectedContact.name ? selectedContact.name.slice(0, 2).toUpperCase() : <User className="w-6 h-6" />}
                   </div>
                   <div>
@@ -183,49 +159,28 @@ export const Contacts: React.FC = () => {
                       setSelectedContactId(selectedContact.id);
                       setActiveTab('conversations');
                     }}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" /> Ouvrir Chat
-                  </button>
-
-                  <button
-                    onClick={() => toggleAi(selectedContact)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
-                      selectedContact.ai_enabled
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                        : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                    }`}
-                  >
-                    {selectedContact.ai_enabled ? (
-                      <>
-                        <ToggleRight className="w-4 h-4 text-emerald-600" />
-                        <span>IA 24/7 Active</span>
-                      </>
-                    ) : (
-                      <>
-                        <ToggleLeft className="w-4 h-4 text-amber-600" />
-                        <span>Prise de main</span>
-                      </>
-                    )}
+                    <MessageSquare className="w-3.5 h-3.5" /> Ouvrir Chat WhatsApp
                   </button>
                 </div>
               </div>
 
-              {/* Mémoire IA Détails */}
+              {/* Fiche Technique & Notes */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                    <Brain className="w-4 h-4 text-emerald-600" />
-                    <span>Informations mémorisées par l'IA</span>
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <span>Notes & Fiche Technique</span>
                   </div>
                   <span className="text-xs text-slate-400 font-medium">
-                    {memories.length} faits enregistrés
+                    {memories.length} notes enregistrées
                   </span>
                 </div>
 
                 {memories.length === 0 ? (
                   <div className="p-8 text-center bg-slate-50 rounded-xl text-xs text-slate-400">
-                    Aucun élément spécifique mémorisé pour le moment sur ce client.
+                    Aucune note ou information spécifique enregistrée pour ce client.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -235,7 +190,7 @@ export const Contacts: React.FC = () => {
                         className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 relative group space-y-1"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800">
                             {mem.category}
                           </span>
                           <button
@@ -253,10 +208,10 @@ export const Contacts: React.FC = () => {
                   </div>
                 )}
 
-                {/* Formulaire ajout manuel de mémoire */}
+                {/* Formulaire ajout de note */}
                 <form onSubmit={handleAddMemory} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-xs">
                   <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                    <Plus className="w-3.5 h-3.5 text-emerald-600" /> Ajouter manuellement un fait à retenir :
+                    <Plus className="w-3.5 h-3.5 text-blue-600" /> Ajouter une note ou consigne technique :
                   </span>
                   <div className="grid grid-cols-3 gap-2">
                     <select
@@ -289,9 +244,9 @@ export const Contacts: React.FC = () => {
                     <button
                       type="submit"
                       disabled={!newKey || !newValue}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold disabled:opacity-50"
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold disabled:opacity-50"
                     >
-                      Mémoriser
+                      Enregistrer la note
                     </button>
                   </div>
                 </form>
@@ -299,7 +254,7 @@ export const Contacts: React.FC = () => {
             </>
           ) : (
             <div className="text-center py-16 text-slate-400 text-sm">
-              Sélectionnez un contact pour visualiser sa fiche mémoire.
+              Sélectionnez un contact pour visualiser sa fiche technique.
             </div>
           )}
         </div>
