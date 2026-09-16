@@ -1,16 +1,19 @@
-const CACHE_NAME = 'agenda-pme-v1';
+const CACHE_NAME = 'hub-pme-v3-4-0';
 
-// Fichiers vitaux mis en cache lors de l'installation
+// Fichiers relatifs mis en cache lors de l'installation (sans forcer de chemin absolu)
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json'
+  './',
+  './index.html',
+  './manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      return Promise.allSettled(
+        STATIC_ASSETS.map((asset) => cache.add(asset).catch(() => {}))
+      );
     })
   );
 });
@@ -25,9 +28,8 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // Écoute du message SKIP_WAITING envoyé par le bouton "Actualiser"
@@ -41,6 +43,7 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   // On ne met pas en cache les websockets ou les requêtes vers l'API temps réel Firestore/Backend
   if (
+    event.request.method !== 'GET' ||
     event.request.url.includes('/api/') ||
     event.request.url.includes('firestore.googleapis.com') ||
     event.request.url.includes('/ws')
@@ -51,7 +54,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
+        if (networkResponse && networkResponse.status === 200) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -63,7 +66,7 @@ self.addEventListener('fetch', (event) => {
         return caches.match(event.request).then((cachedResponse) => {
           if (cachedResponse) return cachedResponse;
           if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
+            return caches.match('./index.html').then((r) => r || caches.match('/index.html'));
           }
         });
       })

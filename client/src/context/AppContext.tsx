@@ -19,7 +19,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const DEFAULT_CLOUD_BACKEND = 'https://camping-turbo-aye-utilization.trycloudflare.com';
+export const DEFAULT_CLOUD_BACKEND = '';
 
 export function getApiBaseUrl(): string {
   if (typeof window === 'undefined') return '';
@@ -27,11 +27,7 @@ export function getApiBaseUrl(): string {
   if (custom && custom.trim()) {
     return custom.trim().replace(/\/+$/, '');
   }
-  // Sur GitHub Pages ou domaine distant sans backend local, relier au Cloudflare Tunnel sécurisé
-  if (window.location.hostname.includes('github.io') || (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')) {
-    return DEFAULT_CLOUD_BACKEND;
-  }
-  return '';
+  return DEFAULT_CLOUD_BACKEND;
 }
 
 export function getWsBaseUrl(): string | null {
@@ -41,6 +37,10 @@ export function getWsBaseUrl(): string | null {
     const wsProto = baseUrl.startsWith('https://') ? 'wss:' : 'ws:';
     const host = baseUrl.replace(/^https?:\/\//, '');
     return `${wsProto}//${host}/ws`;
+  }
+  // Sur GitHub Pages ou hébergeur statique sans backend configuré, désactiver le WebSocket par défaut
+  if (window.location.hostname.includes('github.io')) {
+    return null;
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/ws`;

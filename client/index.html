@@ -12,6 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="mobile-web-app-capable" content="yes" />
   </head>
   <body class="h-full text-slate-900 font-['Plus_Jakarta_Sans',sans-serif] antialiased">
     <div id="root" class="h-full"></div>
@@ -19,11 +20,43 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch((err) => {
+          navigator.serviceWorker.register('./sw.js').then((reg) => {
+            reg.update().catch(() => {});
+          }).catch((err) => {
             console.log('SW registration failed:', err);
           });
         });
       }
+
+      // Sécurité anti-page blanche : si un chunk manquant échoue (mise à jour en cours)
+      window.addEventListener('error', (e) => {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          console.warn('[Auto-Recovery] Erreur de chargement d\'asset. Nettoyage du cache...');
+          if ('caches' in window) {
+            caches.keys().then((keys) => Promise.all(keys.map(k => caches.delete(k)))).then(() => {
+              window.location.reload();
+            });
+          }
+        }
+      }, true);
+
+      // Si après 3s l'application n'est pas montée, purger les anciens caches et recharger
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.children.length === 0) {
+          console.warn('[Auto-Recovery] Détection d\'écran blanc persistant. Nettoyage et rafraîchissement...');
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then((regs) => {
+              regs.forEach((r) => r.unregister());
+            });
+          }
+          if ('caches' in window) {
+            caches.keys().then((keys) => Promise.all(keys.map(k => caches.delete(k)))).then(() => {
+              window.location.reload();
+            });
+          }
+        }
+      }, 3000);
     </script>
   </body>
 </html>
