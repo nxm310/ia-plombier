@@ -163,21 +163,26 @@ export interface ShareAppointmentPayload {
 }
 
 export function encodeAppointmentPayload(apt: ShareAppointmentPayload): string {
-  const data = {
-    id: apt.id || '',
-    title: apt.service_name || apt.serviceName || apt.title || 'Rendez-vous',
-    date: apt.date || '',
-    start: apt.start_time || apt.startTime || '09:00',
-    end: apt.end_time || apt.endTime || '10:00',
-    client: apt.contact_name || apt.contactName || apt.contact_phone || apt.contactPhone || '',
-    phone: apt.contact_phone || apt.contactPhone || '',
-    staff: apt.team_member_name || apt.teamMemberName || '',
-    service: apt.service_name || apt.serviceName || '',
-    notes: apt.notes || ''
-  };
+  // Format compact pour réduire la longueur de l'URL dans WhatsApp et SMS
+  const compact: Record<string, string> = {};
+  if (apt.date) compact.d = apt.date;
+  const start = apt.start_time || apt.startTime;
+  if (start) compact.s = start;
+  const end = apt.end_time || apt.endTime;
+  if (end) compact.e = end;
+  const title = apt.service_name || apt.serviceName || apt.title;
+  if (title && title !== 'Rendez-vous') compact.t = title;
+  const staff = apt.team_member_name || apt.teamMemberName;
+  if (staff) compact.m = staff;
+  const client = apt.contact_name || apt.contactName;
+  if (client) compact.c = client;
+  const phone = apt.contact_phone || apt.contactPhone;
+  if (phone && phone !== client) compact.p = phone;
+  const notes = apt.notes;
+  if (notes) compact.n = notes;
 
   try {
-    const json = JSON.stringify(data);
+    const json = JSON.stringify(compact);
     const bytes = new TextEncoder().encode(json);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) {
@@ -201,23 +206,34 @@ export function decodeAppointmentPayload(str: string): ShareAppointmentPayload |
     }
     const json = new TextDecoder().decode(bytes);
     const parsed = JSON.parse(json);
+
+    // Support rétrocompatible de l'ancien format verbeux et du format compact
+    const date = parsed.d || parsed.date || '';
+    const startTime = parsed.s || parsed.start || parsed.start_time || parsed.startTime || '09:00';
+    const endTime = parsed.e || parsed.end || parsed.end_time || parsed.endTime || '10:00';
+    const title = parsed.t || parsed.title || parsed.service || parsed.service_name || 'Rendez-vous';
+    const staff = parsed.m || parsed.staff || parsed.team_member_name || parsed.teamMemberName || '';
+    const client = parsed.c || parsed.client || parsed.contact_name || parsed.contactName || '';
+    const phone = parsed.p || parsed.phone || parsed.contact_phone || parsed.contactPhone || '';
+    const notes = parsed.n || parsed.notes || '';
+
     return {
-      id: parsed.id,
-      title: parsed.title,
-      date: parsed.date,
-      start_time: parsed.start,
-      startTime: parsed.start,
-      end_time: parsed.end,
-      endTime: parsed.end,
-      contact_name: parsed.client,
-      contactName: parsed.client,
-      contact_phone: parsed.phone,
-      contactPhone: parsed.phone,
-      team_member_name: parsed.staff,
-      teamMemberName: parsed.staff,
-      service_name: parsed.service,
-      serviceName: parsed.service,
-      notes: parsed.notes
+      id: parsed.id || '',
+      title,
+      date,
+      start_time: startTime,
+      startTime,
+      end_time: endTime,
+      endTime,
+      contact_name: client || phone,
+      contactName: client || phone,
+      contact_phone: phone,
+      contactPhone: phone,
+      team_member_name: staff,
+      teamMemberName: staff,
+      service_name: parsed.service || parsed.service_name || title,
+      serviceName: parsed.service || parsed.service_name || title,
+      notes
     };
   } catch (e) {
     console.warn('Erreur décodage payload rendez-vous:', e);
@@ -307,10 +323,10 @@ export function formatAppointmentForSharing(
     teamMemberName ? `👷 Intervenant : ${teamMemberName}` : '',
     notes ? `📝 Précisions : ${notes}` : '',
     ``,
-    `📲 Ajouter à votre agenda (iPhone Apple ou Google) :`,
-    `👉 ${publicUrl}`,
+    `À très bientôt !`,
     ``,
-    `À très bientôt !`
+    `📲 Synchroniser (Apple ou Google) :`,
+    publicUrl
   ];
 
   const fullText = parts.filter(p => p !== '').join('\n');
@@ -328,14 +344,15 @@ export async function shareAppointmentNative(
   apt: ShareAppointmentPayload,
   type: 'client' | 'collaborator' = 'client'
 ): Promise<{ success: boolean; method: 'share' | 'clipboard' | 'none'; message?: string }> {
-  const { title, text } = formatAppointmentForSharing(apt, type);
+  const { title, text, publicUrl } = formatAppointmentForSharing(apt, type);
 
   // 1. Tenter la fonction de partage native sur Android / iPhone
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
       await navigator.share({
         title,
-        text
+        text,
+        url: publicUrl
       });
       return { success: true, method: 'share' };
     } catch (err: any) {
