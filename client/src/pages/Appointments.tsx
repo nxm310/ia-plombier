@@ -42,7 +42,10 @@ import {
   downloadClientIcsFile,
   formatClientAppointmentMessage,
   formatCollaboratorMissionMessage,
-  shareAppointmentNative
+  shareAppointmentNative,
+  shareIcsFile,
+  formatAppointmentForSharing,
+  generateAppointmentPublicLink
 } from '../utils/calendar';
 
 export const Appointments: React.FC = () => {
@@ -300,6 +303,29 @@ export const Appointments: React.FC = () => {
     } else if (res.method === 'share') {
       showShareToast('📲 Fonction partage ouverte');
     }
+  };
+
+  const getWhatsAppShareUrl = (apt: Appointment) => {
+    let waPhone = '';
+    if (apt.contact_phone) {
+      const clean = apt.contact_phone.replace(/[\s.\-_/()]/g, '');
+      if (clean.startsWith('+')) {
+        waPhone = clean.replace(/\D/g, '');
+      } else if (clean.startsWith('00')) {
+        waPhone = clean.slice(2).replace(/\D/g, '');
+      } else {
+        const digits = clean.replace(/\D/g, '');
+        if (digits.length === 10 && digits.startsWith('0')) {
+          waPhone = '33' + digits.slice(1);
+        } else if (digits.startsWith('33')) {
+          waPhone = digits;
+        } else if (digits.length >= 8) {
+          waPhone = digits;
+        }
+      }
+    }
+    const sharePayload = formatAppointmentForSharing(apt, 'client');
+    return `https://api.whatsapp.com/send?${waPhone ? `phone=${waPhone}&` : ''}text=${encodeURIComponent(sharePayload.text)}`;
   };
 
   useEffect(() => {
@@ -1286,34 +1312,53 @@ export const Appointments: React.FC = () => {
               </div>
             )}
 
-            {/* Touche Partage Mobile (iPhone & Android) */}
+            {/* Touche Partage Mobile & Envoi direct */}
             <div className="p-3.5 bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 rounded-2xl space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                   <Share2 className="w-4 h-4 text-emerald-600" />
-                  <span>Partager (Android / iPhone)</span>
+                  <span>Partager le rendez-vous</span>
                 </span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                  Partage natif 📲
+                  📱 Mobile & Messagerie
                 </span>
               </div>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                Ouvre directement le menu de partage de votre smartphone (WhatsApp, SMS, Mail, Calendrier, Notes...).
+                Envoyez une fiche élégante avec boutons Apple Calendrier et Google Agenda automatiques.
               </p>
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => handleTriggerShare(selectedAppointment, 'client')}
-                  className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
-                  title="Partager la confirmation client sur Android ou iPhone"
+                  className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                  title="Ouvrir le menu de partage natif de votre smartphone (Android / iPhone)"
                 >
-                  <Share2 className="w-4 h-4" /> Partager la confirmation
+                  <Share2 className="w-4 h-4" /> Partager (iPhone / Android)
+                </button>
+                <a
+                  href={getWhatsAppShareUrl(selectedAppointment)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 bg-[#25D366] hover:bg-[#1ebd59] active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                  title="Envoyer immédiatement via WhatsApp avec lien de confirmation élégant"
+                >
+                  <span className="text-sm">💬</span> WhatsApp
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1 border-t border-emerald-200/60">
+                <button
+                  type="button"
+                  onClick={() => shareIcsFile(selectedAppointment)}
+                  className="flex-1 py-2 px-2.5 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-semibold text-[11px] rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Partager ou exporter le fichier calendrier Apple (.ics) pour iPhone"
+                >
+                  <span>🍏</span> Événement iPhone (.ics)
                 </button>
                 {selectedAppointment.team_member_id && (
                   <button
                     type="button"
                     onClick={() => handleTriggerShare(selectedAppointment, 'collaborator')}
-                    className="py-2.5 px-3 bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 active:scale-[0.98] font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="py-2 px-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 active:scale-[0.98] font-semibold text-[11px] rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
                     title="Partager l'ordre de mission au collaborateur"
                   >
                     🛠️ Mission Technicien
@@ -1418,31 +1463,28 @@ export const Appointments: React.FC = () => {
 
               {/* Liens Synchronisation Agenda */}
               <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5">
-                <div className="min-w-0">
-                  <p className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                    📅 Synchronisation Agenda
-                  </p>
-                  <p className="text-[10px] text-slate-500">
-                    Boutons d'ajout en 1 clic pour Google Agenda & Apple Calendrier
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                      📅 Synchronisation Agenda
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      Boutons d'ajout en 1 clic pour Apple Calendrier & Google Agenda
+                    </p>
+                  </div>
+                  <a
+                    href={generateAppointmentPublicLink(selectedAppointment)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1 shrink-0"
+                    title="Voir la fiche web envoyée au client"
+                  >
+                    <span>Fiche en ligne ↗</span>
+                  </a>
                 </div>
 
                 {/* Boutons d'accès direct cliquables */}
                 <div className="pt-1 flex flex-wrap items-center gap-2">
-                  <a
-                    href={generateClientGoogleCalendarUrl({
-                      title: selectedAppointment.service_name ? `Intervention : ${selectedAppointment.service_name}` : selectedAppointment.title,
-                      date: selectedAppointment.date,
-                      startTime: selectedAppointment.start_time,
-                      endTime: selectedAppointment.end_time,
-                      details: `Intervention avec ${selectedAppointment.team_member_name || 'Notre équipe'}.${selectedAppointment.notes ? `\nPrécisions : ${selectedAppointment.notes}` : ''}`
-                    })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5"
-                  >
-                    📅 Google Agenda
-                  </a>
                   <button
                     type="button"
                     onClick={() => downloadClientIcsFile({
@@ -1457,6 +1499,20 @@ export const Appointments: React.FC = () => {
                   >
                     🍏 Apple Calendrier (.ics)
                   </button>
+                  <a
+                    href={generateClientGoogleCalendarUrl({
+                      title: selectedAppointment.service_name ? `Intervention : ${selectedAppointment.service_name}` : selectedAppointment.title,
+                      date: selectedAppointment.date,
+                      startTime: selectedAppointment.start_time,
+                      endTime: selectedAppointment.end_time,
+                      details: `Intervention avec ${selectedAppointment.team_member_name || 'Notre équipe'}.${selectedAppointment.notes ? `\nPrécisions : ${selectedAppointment.notes}` : ''}`
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5"
+                  >
+                    📅 Google Agenda
+                  </a>
                 </div>
               </div>
 

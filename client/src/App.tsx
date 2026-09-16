@@ -6,10 +6,12 @@ import { ClientsManager } from './pages/ClientsManager';
 import { Team } from './pages/Team';
 import { Contacts } from './pages/Contacts';
 import { Settings } from './pages/Settings';
+import { PublicAppointmentView } from './pages/PublicAppointmentView';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 import { PatchNotesModal } from './components/PatchNotesModal';
 import { CURRENT_PATCH_VERSION } from './data/patchNotes';
 import { useApp } from './context/AppContext';
+import { decodeAppointmentPayload } from './utils/calendar';
 import {
   X,
   Menu,
@@ -29,6 +31,20 @@ export const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isPatchNotesOpen, setIsPatchNotesOpen] = useState(false);
 
+  // Détection d'un lien de confirmation public reçu par WhatsApp / SMS / iMessage (?rdv=... ou #rdv=...)
+  const [publicRdvData, setPublicRdvData] = useState<any>(() => {
+    if (typeof window === 'undefined') return null;
+    const urlParams = new URLSearchParams(window.location.search);
+    let rdvParam = urlParams.get('rdv');
+    if (!rdvParam && window.location.hash.includes('rdv=')) {
+      rdvParam = window.location.hash.split('rdv=')[1]?.split('&')[0];
+    }
+    if (rdvParam) {
+      return decodeAppointmentPayload(rdvParam);
+    }
+    return null;
+  });
+
   // Pop-up automatique à l'allumage si nouvelle version détectée
   useEffect(() => {
     const lastSeen = localStorage.getItem('assistant_last_seen_patch');
@@ -36,6 +52,21 @@ export const App: React.FC = () => {
       setIsPatchNotesOpen(true);
     }
   }, []);
+
+  // Si on consulte un lien public d'invitation/confirmation reçu par message
+  if (publicRdvData) {
+    return (
+      <PublicAppointmentView
+        data={publicRdvData}
+        onClose={() => {
+          setPublicRdvData(null);
+          if (typeof window !== 'undefined') {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        }}
+      />
+    );
+  }
 
   const renderContent = () => {
     switch (activeTab) {

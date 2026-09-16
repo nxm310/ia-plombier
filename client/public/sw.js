@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hub-pme-v3-6-0';
+const CACHE_NAME = 'hub-pme-v3-7-0';
 
 // Fichiers relatifs mis en cache lors de l'installation (sans forcer de chemin absolu)
 const STATIC_ASSETS = [

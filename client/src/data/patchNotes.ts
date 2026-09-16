@@ -23,15 +23,69 @@ export interface PatchVersion {
   }[];
 }
 
-export const CURRENT_PATCH_VERSION = '3.6.0';
+export const CURRENT_PATCH_VERSION = '3.7.0';
 
 export const PATCH_HISTORY: PatchVersion[] = [
+  {
+    version: '3.7.0',
+    codename: 'Fiches Rendez-vous Élégantes & Boutons Apple et Google Calendrier sans Liens Bruts',
+    date: '16 Septembre 2026',
+    highlight: 'Remplacement des liens bruts et illisibles dans les messages par une fiche de rendez-vous web moderne et responsive (style Apple / Doctolib) avec boutons d\'ajout directs en 1 clic pour Apple Calendrier (.ics iPhone/iPad/Mac) et Google Agenda (Android/PC).',
+    isLatest: true,
+    features: [
+      {
+        icon: '💎',
+        title: 'Fiches de Rendez-vous Web Élégantes',
+        desc: 'Terminé les liens URL à rallonge de 300 caractères dans WhatsApp et SMS. Le message contient un lien court et soigné ouvrant une magnifique carte de confirmation.',
+        badge: 'Design & Clarté'
+      },
+      {
+        icon: '🍏',
+        title: 'Bouton Apple Calendrier (iPhone / iPad / Mac)',
+        desc: 'Un bouton dédié permet aux utilisateurs d\'iPhone d\'ajouter l\'intervention directement dans leur calendrier Apple natif en 1 clic (.ics).',
+        badge: 'iOS Natif'
+      },
+      {
+        icon: '📅',
+        title: 'Bouton Google Agenda (Android & Web)',
+        desc: 'Un bouton dédié pour ajouter le rendez-vous instantanément sur Google Calendar pour les utilisateurs Android et PC.',
+        badge: 'Google'
+      },
+      {
+        icon: '💬',
+        title: 'Boutons WhatsApp & Fichier .ics Directs',
+        desc: 'Accès rapide dans la modale de rendez-vous pour ouvrir la discussion WhatsApp avec le message prêt ou partager l\'événement .ics.',
+        badge: 'Partage'
+      }
+    ],
+    improvements: [
+      {
+        icon: '🔒',
+        title: 'Encodage URL Autonome et Sécurisé',
+        desc: 'Toutes les données du rendez-vous sont encodées de manière sûre dans le lien public, fonctionnant sans backend ni base de données externe sur GitHub Pages.'
+      },
+      {
+        icon: '📲',
+        title: 'Support du Partage de Fichier .ics sur iOS',
+        desc: 'Utilisation de navigator.canShare({ files: [ics] }) sur Safari iOS pour partager la carte d\'invitation calendrier directement dans les apps de messagerie.'
+      }
+    ],
+    fixes: [
+      {
+        title: 'Suppression des URLs brutes dans WhatsApp',
+        desc: 'Les messages de confirmation n\'affichent plus de chaînes URL complexes avec encodage de caractères percent-encoding.'
+      },
+      {
+        title: 'Ajout de la prise en charge complète du calendrier iPhone',
+        desc: 'Correction du manque d\'option Apple Calendrier lors du partage de rendez-vous avec des clients sur iPhone.'
+      }
+    ]
+  },
   {
     version: '3.6.0',
     codename: 'Partage Natif Universel Android & iPhone pour Rendez-vous',
     date: '16 Septembre 2026',
     highlight: 'Intégration d\'un bouton de partage natif sur smartphone à la création d\'un rendez-vous et lors du clic sur n\'importe quelle intervention de l\'agenda. Ouvre instantanément la feuille de partage de votre iPhone ou Android (WhatsApp, SMS, Email, Calendrier, etc.).',
-    isLatest: true,
     features: [
       {
         icon: '📲',
