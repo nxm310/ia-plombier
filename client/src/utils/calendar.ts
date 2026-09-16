@@ -142,3 +142,121 @@ export function formatCollaboratorMissionMessage(apt: {
 
   return parts.filter(p => p !== '').join('\n');
 }
+
+export interface ShareAppointmentPayload {
+  id?: string | number;
+  title: string;
+  date: string;
+  start_time?: string;
+  startTime?: string;
+  end_time?: string;
+  endTime?: string;
+  contact_name?: string | null;
+  contactName?: string | null;
+  contact_phone?: string | null;
+  contactPhone?: string | null;
+  team_member_name?: string | null;
+  teamMemberName?: string | null;
+  service_name?: string | null;
+  serviceName?: string | null;
+  notes?: string | null;
+}
+
+export function formatAppointmentForSharing(
+  apt: ShareAppointmentPayload,
+  type: 'client' | 'collaborator' = 'client'
+): { title: string; text: string; googleCalUrl: string } {
+  const startTime = apt.start_time || apt.startTime || '09:00';
+  const endTime = apt.end_time || apt.endTime || '10:00';
+  const contactName = apt.contact_name || apt.contactName || null;
+  const contactPhone = apt.contact_phone || apt.contactPhone || null;
+  const teamMemberName = apt.team_member_name || apt.teamMemberName || null;
+  const serviceName = apt.service_name || apt.serviceName || null;
+  const notes = apt.notes || null;
+
+  const isCollaborator = type === 'collaborator';
+  const baseMessage = isCollaborator
+    ? formatCollaboratorMissionMessage({
+        title: apt.title,
+        date: apt.date,
+        startTime,
+        endTime,
+        contactName,
+        contactPhone,
+        teamMemberName,
+        serviceName,
+        notes
+      })
+    : formatClientAppointmentMessage({
+        title: apt.title,
+        date: apt.date,
+        startTime,
+        endTime,
+        contactName,
+        teamMemberName,
+        serviceName,
+        notes
+      });
+
+  const googleCalUrl = generateClientGoogleCalendarUrl({
+    title: serviceName ? `Intervention : ${serviceName}` : apt.title,
+    date: apt.date,
+    startTime,
+    endTime,
+    details: `Intervention avec ${teamMemberName || 'Notre équipe'}.${notes ? `\nPrécisions : ${notes}` : ''}`
+  });
+
+  const fullShareText = `${baseMessage}\n\n📅 Synchroniser avec Google Agenda :\n${googleCalUrl}`;
+  const shareTitle = `RDV : ${apt.title} (${apt.date} à ${startTime})`;
+
+  return {
+    title: shareTitle,
+    text: fullShareText,
+    googleCalUrl
+  };
+}
+
+export async function shareAppointmentNative(
+  apt: ShareAppointmentPayload,
+  type: 'client' | 'collaborator' = 'client'
+): Promise<{ success: boolean; method: 'share' | 'clipboard' | 'none'; message?: string }> {
+  const { title, text } = formatAppointmentForSharing(apt, type);
+
+  // 1. Tenter la fonction de partage native sur Android / iPhone
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({
+        title,
+        text
+      });
+      return { success: true, method: 'share' };
+    } catch (err: any) {
+      if (
+        err &&
+        (err.name === 'AbortError' ||
+          String(err).toLowerCase().includes('abort') ||
+          String(err).toLowerCase().includes('cancel') ||
+          String(err).toLowerCase().includes('dismissed'))
+      ) {
+        return { success: true, method: 'share' };
+      }
+      console.warn('Erreur navigator.share, tentative fallback clipboard:', err);
+    }
+  }
+
+  // 2. Fallback presse-papier si Web Share n'est pas actif (ex: ordinateur de bureau ou navigateur sans share)
+  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return {
+        success: true,
+        method: 'clipboard',
+        message: 'Détails du rendez-vous copiés dans le presse-papier ! Prêt à être collé (SMS, Mail, etc.)'
+      };
+    } catch (clipErr) {
+      console.warn('Erreur écriture clipboard:', clipErr);
+    }
+  }
+
+  return { success: false, method: 'none' };
+}

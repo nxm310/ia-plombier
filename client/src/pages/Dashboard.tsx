@@ -9,11 +9,13 @@ import {
   Briefcase,
   Layers,
   Phone,
-  Send
+  Send,
+  Share2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DashboardStats, Appointment, Contact } from '../types';
 import { getStoredContacts } from '../data/defaultContacts';
+import { shareAppointmentNative } from '../utils/calendar';
 
 export const Dashboard: React.FC = () => {
   const {
@@ -243,11 +245,24 @@ export const Dashboard: React.FC = () => {
                         {apt.contact_name || apt.contact_phone} • avec <span className="font-medium text-slate-700">{apt.team_member_name || 'Équipe'}</span>
                       </p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-medium text-[11px]">
-                        {apt.date}
-                      </span>
-                      <p className="text-slate-500 font-medium mt-0.5">{apt.start_time} - {apt.end_time}</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right">
+                        <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-medium text-[11px]">
+                          {apt.date}
+                        </span>
+                        <p className="text-slate-500 font-medium mt-0.5">{apt.start_time} - {apt.end_time}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          shareAppointmentNative(apt);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 active:scale-95 rounded-lg border border-slate-200 transition cursor-pointer"
+                        title="Partager sur Android / iPhone"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))}

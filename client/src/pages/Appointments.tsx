@@ -19,7 +19,8 @@ import {
   Upload,
   FileText,
   Wrench,
-  AlertTriangle
+  AlertTriangle,
+  Share2
 } from 'lucide-react';
 import { useApp, getApiBaseUrl } from '../context/AppContext';
 import { Appointment, TeamMember, Contact, Service } from '../types';
@@ -40,7 +41,8 @@ import {
   generateClientGoogleCalendarUrl,
   downloadClientIcsFile,
   formatClientAppointmentMessage,
-  formatCollaboratorMissionMessage
+  formatCollaboratorMissionMessage,
+  shareAppointmentNative
 } from '../utils/calendar';
 
 export const Appointments: React.FC = () => {
@@ -283,6 +285,22 @@ export const Appointments: React.FC = () => {
 
   // Modal Détail / Action RDV
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [newlyCreatedAppointmentId, setNewlyCreatedAppointmentId] = useState<number | string | null>(null);
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
+  const showShareToast = (msg: string) => {
+    setShareToast(msg);
+    setTimeout(() => setShareToast(null), 3500);
+  };
+
+  const handleTriggerShare = async (apt: Appointment, type: 'client' | 'collaborator' = 'client') => {
+    const res = await shareAppointmentNative(apt, type);
+    if (res.method === 'clipboard' && res.message) {
+      showShareToast(res.message);
+    } else if (res.method === 'share') {
+      showShareToast('📲 Fonction partage ouverte');
+    }
+  };
 
   useEffect(() => {
     fetch('/api/appointments')
@@ -439,8 +457,8 @@ export const Appointments: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleCreateAppointment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateAppointment = async (e?: React.FormEvent, andShare: boolean = false) => {
+    if (e) e.preventDefault();
     if (!formContactId || !formTitle || !formDate) return;
     setConflictError(null);
 
@@ -450,6 +468,30 @@ export const Appointments: React.FC = () => {
     const selectedMember = teamMembers.find(m => m.id === Number(formTeamMemberId));
     const selectedContact = contacts.find(c => c.id === Number(formContactId));
     const selectedService = services.find(s => s.id === Number(formServiceId));
+
+    // Si déclenché avec "Enregistrer & Partager", ouvrir immédiatement la feuille de partage native
+    if (andShare) {
+      const sharePayload: Appointment = {
+        id: Date.now(),
+        contact_id: Number(formContactId) || 0,
+        team_member_id: formTeamMemberId ? Number(formTeamMemberId) : null,
+        service_id: formServiceId ? Number(formServiceId) : null,
+        title: formTitle,
+        date: formDate,
+        start_time: startTime,
+        end_time: endTime,
+        status: 'confirmed',
+        notes: formNotes || null,
+        source: 'manual',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        contact_name: selectedContact ? (selectedContact.name || selectedContact.phone_number) : 'Client',
+        contact_phone: selectedContact?.phone_number,
+        team_member_name: selectedMember?.name,
+        service_name: selectedService?.name
+      };
+      handleTriggerShare(sharePayload, 'client');
+    }
 
     // 1. Vérification transactionnelle Cloud Firestore contre les doubles réservations
     const teamId = getTeamId();
@@ -581,6 +623,8 @@ export const Appointments: React.FC = () => {
     setFormTitle('');
     setFormNotes('');
     setFormContactId('');
+    setNewlyCreatedAppointmentId(finalApt.id);
+    setSelectedAppointment(finalApt);
     refreshAll();
   };
 
@@ -1054,6 +1098,17 @@ export const Appointments: React.FC = () => {
                                           ☀️ Journée
                                         </span>
                                       )}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleTriggerShare(apt, 'client');
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-emerald-700 hover:bg-white/80 rounded transition cursor-pointer"
+                                        title="Partager sur Android / iPhone"
+                                      >
+                                        <Share2 className="w-3 h-3" />
+                                      </button>
                                     </div>
                                   </div>
 
@@ -1189,6 +1244,18 @@ export const Appointments: React.FC = () => {
                     }`}>
                       {apt.status}
                     </span>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTriggerShare(apt, 'client');
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 active:scale-95 rounded-lg border border-slate-200 transition cursor-pointer"
+                      title="Partager sur Android / iPhone"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1204,6 +1271,55 @@ export const Appointments: React.FC = () => {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-base text-slate-900">Détails du Rendez-vous</h3>
               <button onClick={() => setSelectedAppointment(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            {/* Bannière de confirmation si créé récemment */}
+            {newlyCreatedAppointmentId === selectedAppointment.id && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-bold text-xs text-emerald-900">Rendez-vous planifié avec succès !</p>
+                    <p className="text-[11px] text-emerald-700">Vous pouvez le partager immédiatement :</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Touche Partage Mobile (iPhone & Android) */}
+            <div className="p-3.5 bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                  <Share2 className="w-4 h-4 text-emerald-600" />
+                  <span>Partager (Android / iPhone)</span>
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  Partage natif 📲
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Ouvre directement le menu de partage de votre smartphone (WhatsApp, SMS, Mail, Calendrier, Notes...).
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleTriggerShare(selectedAppointment, 'client')}
+                  className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                  title="Partager la confirmation client sur Android ou iPhone"
+                >
+                  <Share2 className="w-4 h-4" /> Partager la confirmation
+                </button>
+                {selectedAppointment.team_member_id && (
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerShare(selectedAppointment, 'collaborator')}
+                    className="py-2.5 px-3 bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 active:scale-[0.98] font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Partager l'ordre de mission au collaborateur"
+                  >
+                    🛠️ Mission Technicien
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -1827,24 +1943,43 @@ export const Appointments: React.FC = () => {
                 ></textarea>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50"
+                  className="px-3.5 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 text-xs font-semibold order-last sm:order-first transition cursor-pointer"
                 >
                   Annuler
                 </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => handleCreateAppointment(e as any, true)}
+                  disabled={isUploadingDoc}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.98] text-white font-bold rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-xs text-xs cursor-pointer"
+                  title="Enregistrer et ouvrir la fonction partage native (Android / iPhone)"
+                >
+                  <Share2 className="w-3.5 h-3.5" /> Enregistrer & Partager (Android / iPhone)
+                </button>
+
                 <button
                   type="submit"
                   disabled={isUploadingDoc}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-semibold rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-xs text-xs cursor-pointer"
                 >
-                  {isUploadingDoc ? 'Téléversement...' : 'Confirmer le rendez-vous'}
+                  {isUploadingDoc ? 'Téléversement...' : 'Confirmer'}
                 </button>
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Toast flottant confirmation de partage */}
+      {shareToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-slate-900/95 backdrop-blur-xs text-white text-xs font-semibold rounded-2xl shadow-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-4 duration-200 border border-slate-700">
+          <Share2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{shareToast}</span>
         </div>
       )}
     </div>

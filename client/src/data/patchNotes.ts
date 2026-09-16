@@ -23,15 +23,66 @@ export interface PatchVersion {
   }[];
 }
 
-export const CURRENT_PATCH_VERSION = '3.5.0';
+export const CURRENT_PATCH_VERSION = '3.6.0';
 
 export const PATCH_HISTORY: PatchVersion[] = [
+  {
+    version: '3.6.0',
+    codename: 'Partage Natif Universel Android & iPhone pour Rendez-vous',
+    date: '16 Septembre 2026',
+    highlight: 'Intégration d\'un bouton de partage natif sur smartphone à la création d\'un rendez-vous et lors du clic sur n\'importe quelle intervention de l\'agenda. Ouvre instantanément la feuille de partage de votre iPhone ou Android (WhatsApp, SMS, Email, Calendrier, etc.).',
+    isLatest: true,
+    features: [
+      {
+        icon: '📲',
+        title: 'Bouton Partage Natif Mobile (Android & iPhone)',
+        desc: 'Un clic sur un rendez-vous ouvre la feuille de partage officielle de votre téléphone pour envoyer le résumé complet avec le lien Google Agenda vers WhatsApp, SMS, Mail ou vos contacts.',
+        badge: 'Partage'
+      },
+      {
+        icon: '⚡',
+        title: 'Enregistrer & Partager en 1 Tap',
+        desc: 'Nouvelle option dans le formulaire de planification permettant d\'enregistrer le rendez-vous et de déclencher immédiatement la fonction de partage sans étape supplémentaire.',
+        badge: 'Gain de temps'
+      },
+      {
+        icon: '🛠️',
+        title: 'Confirmation Client ou Ordre de Mission Technicien',
+        desc: 'Choix instantané entre le partage du message de confirmation pour le client ou de l\'ordre de mission technique pour le collaborateur.',
+        badge: 'Flexibilité'
+      },
+      {
+        icon: '📋',
+        title: 'Accès Partage Rapide Partout',
+        desc: 'Icône de partage rapide ajoutée directement sur les cartes de planning, dans la liste des rendez-vous, sur le tableau de bord et dans l\'historique CRM client.',
+        badge: 'Ergonomie'
+      }
+    ],
+    improvements: [
+      {
+        icon: '🛡️',
+        title: 'Préservation du Geste Utilisateur Mobile',
+        desc: 'Déclenchement synchronisé du partage Web Share API pour garantir la compatibilité absolue avec Safari iOS et Google Chrome Android sans blocage de sécurité.'
+      },
+      {
+        icon: '📋',
+        title: 'Fallback Presse-papier Automatique',
+        desc: 'Sur ordinateur de bureau ou navigateur non compatible, copie automatique du texte formaté dans le presse-papier avec confirmation visuelle.'
+      }
+    ],
+    fixes: [
+      {
+        title: 'Affichage automatique du rendez-vous nouvellement créé',
+        desc: 'Ouverture automatique des détails avec bandeau de confirmation dès la validation pour permettre un partage immédiat.'
+      }
+    ]
+  },
   {
     version: '3.5.0',
     codename: 'Focus Absolu : Agenda, Équipe & CRM (Suppression Messagerie Directe)',
     date: '16 Septembre 2026',
     highlight: 'Suppression intégrale du module de messagerie directe et des boîtes de réception. L\'application se recentre à 100% sur le cœur de valeur : planification d\'agenda instantanée, gestion d\'équipe sur le terrain et fiches techniques CRM.',
-    isLatest: true,
+    isLatest: false,
     features: [
       {
         icon: '🎯',

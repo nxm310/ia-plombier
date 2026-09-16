@@ -16,13 +16,15 @@ import {
   ExternalLink,
   UserCheck,
   AlertCircle,
-  Clock
+  Clock,
+  Share2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Contact, Memory, Appointment } from '../types';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
 import { subscribeToContacts, saveCloudContact, deleteCloudContact, getTeamId } from '../services/cloudSync';
 import { formatPhoneNumber, handlePhoneInputChange } from '../utils/phone';
+import { shareAppointmentNative } from '../utils/calendar';
 
 export const ClientsManager: React.FC = () => {
   const { setSelectedContactId, setActiveTab, triggerRefresh, refreshAll } = useApp();
@@ -928,12 +930,25 @@ export const ClientsManager: React.FC = () => {
                             {apt.date} • {apt.start_time} - {apt.end_time} • avec <strong className="text-slate-700">{apt.team_member_name || 'Équipe'}</strong>
                           </p>
                         </div>
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                          apt.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' :
-                          apt.status === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-800'
-                        }`}>
-                          {apt.status}
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            apt.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' :
+                            apt.status === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {apt.status}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              shareAppointmentNative(apt);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 active:scale-95 rounded-lg border border-slate-200 transition cursor-pointer"
+                            title="Partager sur Android / iPhone"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
