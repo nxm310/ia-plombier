@@ -7,7 +7,6 @@ import {
   Mail,
   Building,
   Tag,
-  MessageSquare,
   Calendar,
   FileText,
   Trash2,
@@ -20,23 +19,22 @@ import {
   Clock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Contact, Memory, Appointment, Message } from '../types';
+import { Contact, Memory, Appointment } from '../types';
 import { getStoredContacts, saveStoredContacts } from '../data/defaultContacts';
 import { subscribeToContacts, saveCloudContact, deleteCloudContact, getTeamId } from '../services/cloudSync';
 import { formatPhoneNumber, handlePhoneInputChange } from '../utils/phone';
 
 export const ClientsManager: React.FC = () => {
-  const { openConversation, setSelectedContactId, setActiveTab, triggerRefresh, refreshAll } = useApp();
+  const { setSelectedContactId, setActiveTab, triggerRefresh, refreshAll } = useApp();
   const [contacts, setContacts] = useState<Contact[]>(() => getStoredContacts());
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Client Detail Tabs
-  const [detailTab, setDetailTab] = useState<'info' | 'memories' | 'appointments' | 'messages'>('info');
+  const [detailTab, setDetailTab] = useState<'info' | 'memories' | 'appointments'>('info');
   const [memories, setMemories] = useState<Memory[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
 
   // Create Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -211,11 +209,6 @@ export const ClientsManager: React.FC = () => {
       .then(res => res.json())
       .then(data => setAppointments(data))
       .catch(err => console.error('Erreur appointments:', err));
-
-    fetch(`/api/contacts/${selectedContact.id}/messages`)
-      .then(res => res.json())
-      .then(data => setMessages(data))
-      .catch(err => console.error('Erreur messages:', err));
 
     // Sync edit fields
     setEditName(selectedContact.name || '');
@@ -633,19 +626,26 @@ export const ClientsManager: React.FC = () => {
 
             {/* Quick Actions Bar */}
             <div className="px-6 py-3 bg-white border-b border-slate-100 flex flex-wrap items-center gap-2 text-xs">
-              <button
-                onClick={() => openConversation(selectedContact.id)}
+              <a
+                href={`tel:${selectedContact.phone_number}`}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition cursor-pointer"
               >
-                <MessageSquare className="w-3.5 h-3.5" /> Ouvrir les échanges
-              </button>
+                <Phone className="w-3.5 h-3.5" /> Appeler
+              </a>
+
+              <a
+                href={`sms:${selectedContact.phone_number}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition border border-slate-200"
+              >
+                SMS
+              </a>
 
               <button
                 onClick={() => {
                   setSelectedContactId(selectedContact.id);
                   setActiveTab('appointments');
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-semibold transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-semibold transition cursor-pointer"
               >
                 <Calendar className="w-3.5 h-3.5" /> Prendre un RDV
               </button>
@@ -664,8 +664,7 @@ export const ClientsManager: React.FC = () => {
               {[
                 { id: 'info', label: 'Coordonnées & Profil' },
                 { id: 'memories', label: `Notes & Fiche (${memories.length})` },
-                { id: 'appointments', label: `Rendez-vous (${appointments.length})` },
-                { id: 'messages', label: `Historique (${messages.length})` }
+                { id: 'appointments', label: `Rendez-vous (${appointments.length})` }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -937,37 +936,6 @@ export const ClientsManager: React.FC = () => {
                         </span>
                       </div>
                     ))
-                  )}
-                </div>
-              )}
-
-              {/* Tab 4: Messages */}
-              {detailTab === 'messages' && (
-                <div className="space-y-3 text-xs">
-                  <h4 className="font-bold text-sm text-slate-800">Derniers Messages échangés</h4>
-                  {messages.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 rounded-xl text-slate-400">
-                      Aucun message archivé pour ce client.
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {messages.map(m => (
-                        <div
-                          key={m.id}
-                          className={`p-3 rounded-xl border ${
-                            m.direction === 'inbound'
-                              ? 'bg-slate-50 border-slate-200 text-slate-800 mr-8'
-                              : 'bg-emerald-50 border-emerald-200 text-emerald-900 ml-8'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
-                            <span className="font-semibold">{m.sender_type === 'client' ? 'Client' : 'Entreprise'}</span>
-                            <span>{new Date(m.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                          <p className="whitespace-pre-line text-xs">{m.content}</p>
-                        </div>
-                      ))}
-                    </div>
                   )}
                 </div>
               )}

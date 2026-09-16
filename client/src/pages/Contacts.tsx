@@ -4,7 +4,6 @@ import {
   Search,
   User,
   Phone,
-  MessageSquare,
   Calendar,
   Plus,
   Trash2
@@ -153,15 +152,27 @@ export const Contacts: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={`tel:${selectedContact.phone_number}`}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition"
+                  >
+                    <Phone className="w-3.5 h-3.5" /> Appeler
+                  </a>
+                  <a
+                    href={`sms:${selectedContact.phone_number}`}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition border border-slate-200"
+                  >
+                    SMS
+                  </a>
                   <button
                     onClick={() => {
                       setSelectedContactId(selectedContact.id);
-                      setActiveTab('conversations');
+                      setActiveTab('appointments');
                     }}
                     className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" /> Ouvrir les échanges
+                    <Calendar className="w-3.5 h-3.5" /> Planifier RDV
                   </button>
                 </div>
               </div>

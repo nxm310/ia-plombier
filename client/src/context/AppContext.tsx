@@ -1,15 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Contact, Message } from '../types';
 
 interface AppContextType {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   selectedContactId: number | null;
   setSelectedContactId: (id: number | null) => void;
-  conversationMobileView: 'list' | 'chat';
-  setConversationMobileView: (view: 'list' | 'chat') => void;
-  openConversation: (contactId: number) => void;
-  lastIncomingMessage: { contact: Contact; message: Message } | null;
   triggerRefresh: number;
   refreshAll: () => void;
   customServerUrl: string;
@@ -49,9 +44,7 @@ export function getWsBaseUrl(): string | null {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
-  const [conversationMobileView, setConversationMobileView] = useState<'list' | 'chat'>('list');
   const [triggerRefresh, setTriggerRefresh] = useState(0);
-  const [lastIncomingMessage, setLastIncomingMessage] = useState<{ contact: Contact; message: Message } | null>(null);
   const [customServerUrl, setCustomServerUrlState] = useState<string>(() => {
     return localStorage.getItem('pme_custom_server_url') || '';
   });
@@ -69,12 +62,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refreshAll = () => setTriggerRefresh(prev => prev + 1);
-
-  const openConversation = (contactId: number) => {
-    setSelectedContactId(contactId);
-    setConversationMobileView('chat');
-    setActiveTab('conversations');
-  };
 
   useEffect(() => {
     const wsUrl = getWsBaseUrl();
@@ -115,10 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ws.onmessage = (event) => {
           try {
             const parsed = JSON.parse(event.data);
-            if (parsed.event === 'new_message') {
-              setLastIncomingMessage(parsed.data);
-              refreshAll();
-            } else if (parsed.event === 'appointment_updated') {
+            if (parsed.event === 'appointment_updated' || parsed.event === 'team_updated') {
               refreshAll();
             }
           } catch (e) {
@@ -154,10 +138,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveTab,
         selectedContactId,
         setSelectedContactId,
-        conversationMobileView,
-        setConversationMobileView,
-        openConversation,
-        lastIncomingMessage,
         triggerRefresh,
         refreshAll,
         customServerUrl,

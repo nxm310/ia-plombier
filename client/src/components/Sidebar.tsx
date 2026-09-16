@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   LayoutDashboard,
-  MessageSquare,
   Calendar,
   Settings,
   UserCheck,
@@ -21,11 +20,10 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpenPatchNotes }) => {
-  const { activeTab, setActiveTab, setConversationMobileView, isBackendConnected } = useApp();
+  const { activeTab, setActiveTab, isBackendConnected } = useApp();
 
   const navItems = [
     { id: 'dashboard', label: 'Vue d\'ensemble', icon: LayoutDashboard },
-    { id: 'conversations', label: 'Messagerie Directe', icon: MessageSquare },
     { id: 'appointments', label: 'Agenda Visuel', icon: Calendar },
     { id: 'clients', label: 'Clients & CRM', icon: UserCheck },
     { id: 'team', label: 'Équipe & Horaires', icon: Briefcase },
@@ -33,9 +31,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose, onOpe
   ];
 
   const handleSelectTab = (tabId: string) => {
-    if (tabId === 'conversations') {
-      setConversationMobileView('list');
-    }
     setActiveTab(tabId);
     if (onClose) onClose();
   };

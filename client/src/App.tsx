@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
-import { Conversations } from './pages/Conversations';
 import { Appointments } from './pages/Appointments';
 import { ClientsManager } from './pages/ClientsManager';
 import { Team } from './pages/Team';
@@ -12,7 +11,6 @@ import { PatchNotesModal } from './components/PatchNotesModal';
 import { CURRENT_PATCH_VERSION } from './data/patchNotes';
 import { useApp } from './context/AppContext';
 import {
-  MessageSquare,
   X,
   Menu,
   LayoutDashboard,
@@ -26,12 +24,8 @@ export const App: React.FC = () => {
   const {
     activeTab,
     setActiveTab,
-    openConversation,
-    setConversationMobileView,
-    lastIncomingMessage,
     isBackendConnected
   } = useApp();
-  const [toast, setToast] = useState<{ name: string; content: string; contactId: number } | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isPatchNotesOpen, setIsPatchNotesOpen] = useState(false);
 
@@ -43,25 +37,10 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (lastIncomingMessage && activeTab !== 'conversations') {
-      setToast({
-        name: lastIncomingMessage.contact.name || lastIncomingMessage.contact.phone_number,
-        content: lastIncomingMessage.message.content,
-        contactId: lastIncomingMessage.contact.id
-      });
-
-      const timer = setTimeout(() => setToast(null), 7000);
-      return () => clearTimeout(timer);
-    }
-  }, [lastIncomingMessage]);
-
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
-      case 'conversations':
-        return <Conversations />;
       case 'appointments':
         return <Appointments />;
       case 'clients':
@@ -148,19 +127,6 @@ export const App: React.FC = () => {
             </button>
 
             <button
-              onClick={() => {
-                setConversationMobileView('list');
-                setActiveTab('conversations');
-              }}
-              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition min-w-[50px] min-h-[44px] justify-center ${
-                activeTab === 'conversations' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <MessageSquare className="w-5 h-5" />
-              <span className="text-[10px]">Chat</span>
-            </button>
-
-            <button
               onClick={() => setActiveTab('appointments')}
               className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition min-w-[50px] min-h-[44px] justify-center ${
                 activeTab === 'appointments' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
@@ -181,6 +147,16 @@ export const App: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setActiveTab('team')}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition min-w-[50px] min-h-[44px] justify-center ${
+                activeTab === 'team' ? 'text-emerald-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Briefcase className="w-5 h-5" />
+              <span className="text-[10px]">Équipe</span>
+            </button>
+
+            <button
               onClick={() => setIsMobileMenuOpen(true)}
               className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 transition min-w-[50px] min-h-[44px] justify-center"
             >
@@ -188,36 +164,6 @@ export const App: React.FC = () => {
               <span className="text-[10px]">Menu</span>
             </button>
           </nav>
-
-        {/* Toast Notification temps réel pour les messages entrants */}
-        {toast && (
-          <div className="absolute bottom-20 md:bottom-6 right-4 sm:right-6 z-50 bg-white border border-slate-200 rounded-2xl p-4 shadow-xl max-w-sm flex items-start gap-3 animate-in fade-in slide-in-from-bottom-5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-              <MessageSquare className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-xs text-slate-900 truncate">{toast.name}</p>
-                <button
-                  onClick={() => setToast(null)}
-                  className="text-slate-400 hover:text-slate-600 p-0.5"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-xs text-slate-600 truncate mt-0.5">{toast.content}</p>
-              <button
-                onClick={() => {
-                  openConversation(toast.contactId);
-                  setToast(null);
-                }}
-                className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold mt-1 inline-block"
-              >
-                Ouvrir la conversation &rarr;
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Modale Pop-up Patch Notes */}
         <PatchNotesModal

@@ -23,15 +23,66 @@ export interface PatchVersion {
   }[];
 }
 
-export const CURRENT_PATCH_VERSION = '3.4.0';
+export const CURRENT_PATCH_VERSION = '3.5.0';
 
 export const PATCH_HISTORY: PatchVersion[] = [
+  {
+    version: '3.5.0',
+    codename: 'Focus Absolu : Agenda, Équipe & CRM (Suppression Messagerie Directe)',
+    date: '16 Septembre 2026',
+    highlight: 'Suppression intégrale du module de messagerie directe et des boîtes de réception. L\'application se recentre à 100% sur le cœur de valeur : planification d\'agenda instantanée, gestion d\'équipe sur le terrain et fiches techniques CRM.',
+    isLatest: true,
+    features: [
+      {
+        icon: '🎯',
+        title: 'Recentrage Métier & Ergonomie Épurée',
+        desc: 'Suppression définitive du volet messagerie directe, des sons de notifications et des canaux de clavardage pour un pilotage clair et sans distraction.',
+        badge: 'Ergonomie'
+      },
+      {
+        icon: '📱',
+        title: 'Appels & SMS Directs',
+        desc: 'Boutons d\'appel direct (tel:) et de SMS natifs (sms:) intégrés directement dans chaque fiche client et tiroir d\'intervention.',
+        badge: 'Contact'
+      },
+      {
+        icon: '⚡',
+        title: 'Tableau de Bord Accéléré',
+        desc: 'Nouveau panneau de pilotage direct avec accès en un clic à l\'Agenda, aux Fiches Clients, à l\'Équipe et aux Prestations.',
+        badge: 'Performance'
+      },
+      {
+        icon: '👥',
+        title: 'Navigation Mobile Réorientée Équipe',
+        desc: 'La barre de navigation mobile remplace l\'ancien onglet chat par l\'accès direct à la gestion d\'équipe et aux disponibilités.',
+        badge: 'Mobile'
+      }
+    ],
+    improvements: [
+      {
+        icon: '🚀',
+        title: 'Allègement du Bundle Frontend',
+        desc: 'Suppression des composants audio, des écouteurs de messages entrants et des structures d\'échange pour une fluidité record sur smartphone.'
+      },
+      {
+        icon: '📇',
+        title: 'Fiches Clients Simplifiées',
+        desc: 'Fiches CRM recentrées sur les coordonnées, les consignes et notes techniques, et l\'historique des interventions planifiées.'
+      }
+    ],
+    fixes: [
+      {
+        title: 'Nettoyage des dépendances résiduelles de chat',
+        desc: 'Élimination de toutes les méthodes et états orphelins liés à la messagerie dans le contexte global de l\'application.'
+      }
+    ]
+  },
   {
     version: '3.4.0',
     codename: 'Hub PME : Agenda & CRM Découplé (Sortie de WhatsApp)',
     date: '16 Septembre 2026',
     highlight: 'Suppression intégrale de WhatsApp et de la bibliothèque Baileys. L\'application devient un Hub PME complet, autonome et centré sur l\'Agenda collaboratif, le CRM clients, les ordres de mission et l\'organisation d\'équipe.',
-    isLatest: true,
+    isLatest: false,
     features: [
       {
         icon: '📅',

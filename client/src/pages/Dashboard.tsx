@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
   Users,
-  MessageSquare,
   Calendar,
   ArrowRight,
-  Send,
   Clock,
   CheckCircle2,
   PlusCircle,
-  Briefcase
+  Briefcase,
+  Layers,
+  Phone,
+  Send
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DashboardStats, Appointment, Contact } from '../types';
@@ -17,19 +18,12 @@ import { getStoredContacts } from '../data/defaultContacts';
 export const Dashboard: React.FC = () => {
   const {
     setActiveTab,
-    openConversation,
-    setConversationMobileView,
-    triggerRefresh,
-    refreshAll,
-    isBackendConnected
+    setSelectedContactId,
+    triggerRefresh
   } = useApp();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [contacts, setContacts] = useState<Contact[]>(() => getStoredContacts().slice(0, 5));
-  const [quickPhone, setQuickPhone] = useState('+33 6 12 99 88 77');
-  const [quickMessage, setQuickMessage] = useState('');
-  const [isSendingQuick, setIsSendingQuick] = useState(false);
-  const [quickSendSuccess, setQuickSendSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/stats')
@@ -57,37 +51,7 @@ export const Dashboard: React.FC = () => {
       });
   }, [triggerRefresh]);
 
-  const handleQuickSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickMessage.trim() || !quickPhone.trim()) return;
-
-    setIsSendingQuick(true);
-    setQuickSendSuccess(null);
-
-    try {
-      const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: quickPhone,
-          content: quickMessage.trim()
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setQuickSendSuccess(`Message enregistré et transmis avec succès !`);
-        setQuickMessage('');
-        refreshAll();
-        setTimeout(() => setQuickSendSuccess(null), 4000);
-      } else {
-        alert(data.error || 'Erreur lors de l\'envoi');
-      }
-    } catch (err: any) {
-      alert('Erreur d\'envoi : ' + err.message);
-    } finally {
-      setIsSendingQuick(false);
-    }
-  };
+  const confirmedCount = appointments.filter(a => a.status === 'confirmed').length;
 
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8 max-w-7xl mx-auto overflow-y-auto h-full">
@@ -129,11 +93,11 @@ export const Dashboard: React.FC = () => {
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <MessageSquare className="w-6 h-6" />
+            <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-500">Messages Échangés</p>
-            <p className="text-2xl font-bold text-slate-800">{stats?.messagesToday ?? '0'}</p>
+            <p className="text-xs font-medium text-slate-500">Interventions Confirmées</p>
+            <p className="text-2xl font-bold text-slate-800">{confirmedCount > 0 ? confirmedCount : (stats?.appointmentsToday ?? '1')}</p>
           </div>
         </div>
 
@@ -158,98 +122,91 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Grid: Quick Message + Upcoming Appointments */}
+      {/* Main Grid: Actions Rapides + Upcoming Appointments */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left: Quick Message to Client */}
-        <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+        {/* Left: Quick Actions & Management */}
+        <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                <Send className="w-4 h-4" />
+                <Layers className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-800">Envoi Rapide de Message Direct</h3>
-                <p className="text-xs text-slate-500">Transmettez immédiatement un message ou une confirmation à un client</p>
+                <h3 className="text-base font-bold text-slate-800">Pilotage Rapide d'Entreprise</h3>
+                <p className="text-xs text-slate-500">Accédez directement aux modules clés de votre activité</p>
               </div>
             </div>
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-medium border border-slate-200">
-              Message Direct
+            <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
+              Agenda & CRM
             </span>
           </div>
 
-          <form onSubmit={handleQuickSend} className="space-y-3 pt-2">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Numéro du destinataire</label>
-              <input
-                type="text"
-                value={quickPhone}
-                onChange={e => setQuickPhone(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                placeholder="+33 6 12 34 56 78"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Message à transmettre</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={quickMessage}
-                  onChange={e => setQuickMessage(e.target.value)}
-                  placeholder="Ex: Bonjour, nous confirmons votre créneau d'intervention pour demain..."
-                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <button
-                  type="submit"
-                  disabled={isSendingQuick || !quickMessage.trim()}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
-                >
-                  {isSendingQuick ? (
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      Envoyer
-                    </>
-                  )}
-                </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              onClick={() => setActiveTab('appointments')}
+              className="p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition cursor-pointer group shadow-2xs"
+            >
+              <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3 group-hover:scale-110 transition">
+                <Calendar className="w-5 h-5" />
               </div>
-            </div>
-          </form>
+              <p className="font-bold text-sm text-slate-900 group-hover:text-emerald-800">Planning & Agenda Visuel</p>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Visualisez les créneaux libres, planifiez des rendez-vous et exportez vers Google & Apple.
+              </p>
+            </button>
 
-          {/* Modèles de messages rapides */}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <span className="text-xs text-slate-400 self-center mr-1">Modèles express :</span>
             <button
-              type="button"
-              onClick={() => setQuickMessage("Bonjour, nous venons de vous transmettre votre devis. Restant à votre disposition !")}
-              className="text-xs px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+              onClick={() => setActiveTab('clients')}
+              className="p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 text-left transition cursor-pointer group shadow-2xs"
             >
-              📄 Devis envoyé
+              <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center mb-3 group-hover:scale-110 transition">
+                <Users className="w-5 h-5" />
+              </div>
+              <p className="font-bold text-sm text-slate-900 group-hover:text-blue-800">Gestion des Fiches Clients</p>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Consultez les coordonnées, codes d'accès chantiers et historique des interventions passées.
+              </p>
             </button>
+
             <button
-              type="button"
-              onClick={() => setQuickMessage("Bonjour, notre technicien est en route vers votre adresse. À tout de suite !")}
-              className="text-xs px-2.5 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition cursor-pointer"
+              onClick={() => setActiveTab('team')}
+              className="p-4 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/40 text-left transition cursor-pointer group shadow-2xs"
             >
-              🚗 En route
+              <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mb-3 group-hover:scale-110 transition">
+                <Briefcase className="w-5 h-5" />
+              </div>
+              <p className="font-bold text-sm text-slate-900 group-hover:text-amber-800">Équipe & Horaires Ouvrés</p>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Définissez les techniciens, spécialités et plages horaires personnalisées par collaborateur.
+              </p>
             </button>
+
             <button
-              type="button"
-              onClick={() => setQuickMessage("Bonjour, votre intervention a été réalisée avec succès. Merci de votre confiance !")}
-              className="text-xs px-2.5 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-800 transition cursor-pointer"
+              onClick={() => setActiveTab('settings')}
+              className="p-4 rounded-xl border border-slate-200 hover:border-purple-300 hover:bg-purple-50/40 text-left transition cursor-pointer group shadow-2xs"
             >
-              ✅ Fin d'intervention
+              <div className="w-9 h-9 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center mb-3 group-hover:scale-110 transition">
+                <Layers className="w-5 h-5" />
+              </div>
+              <p className="font-bold text-sm text-slate-900 group-hover:text-purple-800">Prestations & Paramètres</p>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Ajustez le catalogue d'interventions, durées, tarifs et informations légales de l'entreprise.
+              </p>
             </button>
           </div>
 
-          {/* Confirmation d'envoi direct */}
-          {quickSendSuccess && (
-            <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-slate-600 font-medium">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{quickSendSuccess}</span>
+              <span>Synchronisation Cloud & Partage d'Équipe opérationnels</span>
             </div>
-          )}
+            <button
+              onClick={() => setActiveTab('team')}
+              className="text-emerald-700 font-bold hover:underline cursor-pointer"
+            >
+              Code d'équipe &rarr;
+            </button>
+          </div>
         </div>
 
         {/* Right: Upcoming Appointments */}
@@ -313,13 +270,16 @@ export const Dashboard: React.FC = () => {
               {contacts.map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => openConversation(c.id)}
+                  onClick={() => {
+                    setSelectedContactId(c.id);
+                    setActiveTab('clients');
+                  }}
                   className="w-full text-left p-2 rounded-lg hover:bg-slate-100 flex items-center justify-between transition text-xs cursor-pointer active:scale-[0.99]"
-                  title={`Ouvrir les échanges avec ${c.name || c.phone_number}`}
+                  title={`Ouvrir la fiche de ${c.name || c.phone_number}`}
                 >
                   <div className="truncate pr-2">
                     <span className="font-semibold text-slate-800">{c.name || c.phone_number}</span>
-                    <p className="text-slate-500 truncate">{c.last_message || 'Fiche client active'}</p>
+                    <p className="text-slate-500 truncate">{c.notes || 'Fiche client active'}</p>
                   </div>
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 bg-slate-100 text-slate-700">
                     {c.status || 'Client'}
